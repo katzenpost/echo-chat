@@ -5,4 +5,4 @@ set -eu
 WORK=$(mktemp -d)
 export WORK
 trap 'rm -rf "$WORK"' EXIT
-xvfb-run -a -s "-screen 0 1280x800x24" sh "$(dirname "$0")/offline-session.sh"
+env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1280x800x24" sh "$(dirname "$0")/offline-session.sh"
