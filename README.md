@@ -134,11 +134,18 @@ everything another member sends is untrusted.
 
 ## Testing
 
-    make test          # in one process: the core over a simulated Pigeonhole, what reaches the
-                       # screen, each action, the window driven by clicks and keys, and two
-                       # members each with a shell and a window
+    make test          # in one process: the core over a simulated Pigeonhole, the scenarios,
+                       # what reaches the screen, each action, the window driven by clicks and
+                       # keys, and two members each with a shell and a window
     make e2e           # a saved state in a real window on Xvfb, driven with xdotool
     make shots         # pictures of the window, drawn offscreen, in shots/
     make screenshot    # docs/screenshot.png, from a conversation over the simulated Pigeonhole
     N=5 DAEMON=@katzenpost sh tests/e2e/mixnet.sh   # N windows (2 to 8) in one group, against a running kpclientd
     ./test-integration.sh                       # the same over the docker mixnet
+
+Scenarios in `tests/scenarios/` drive client cores over the simulated Pigeonhole, which keeps
+boxes as katzenpost's replicas do, on a logical clock: what each member asks for before a `run`
+happens in the same stretch of time, a member's traffic can be held, and replica epochs pass on
+command. They are written as katzenqt's group chat scenarios are; `Glint/Tests/Scenario.lean`
+lists the commands. `GLINT_REWRITE=1 lake exe glint-test` writes what each prints into its file,
+for a person to read before committing.
