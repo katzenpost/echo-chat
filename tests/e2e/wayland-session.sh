@@ -43,7 +43,7 @@ expect alice 'selected=second ' "a click selects another group"
 click draft
 wtype -s 200 -d 30 "hi"
 expect alice 'draft=hi ' "typing reaches the message box"
-wtype -M ctrl -k Next -m ctrl
+wtype -s 200 -M ctrl -k Next -m ctrl
 expect alice 'selected=g ' "Ctrl+PageDown selects the next group"
 wtype -s 200 -M ctrl q -m ctrl
 sleep 1
