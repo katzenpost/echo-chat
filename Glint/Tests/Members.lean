@@ -160,7 +160,7 @@ def tests : TestM Unit := do
     alice.click "accept"
     let joined : IO Bool := do
       return (← bob.model).current.any (fun (c : Chat) => c.group.isSome) &&
-        (← alice.texts "inner").any (·.startsWith "~bob ")
+        (← alice.texts "inner").any (· == "~bob")
     unless ← wait "bob joins, and alice lists him" joined do return
     bob.click "draft"
     bob.typeText "hello from bob"
@@ -168,15 +168,15 @@ def tests : TestM Unit := do
     alice.click "draft"
     alice.typeText "hello from alice"
     alice.click "send"
-    discard <| wait "alice reads bob" do return (← lineOf alice "hello from bob").any (·.head? == some "~bob")
-    discard <| wait "bob reads alice" do return (← lineOf bob "hello from alice").any (·.head? == some "~alice")
+    discard <| wait "alice reads bob" do return (← lineOf alice "hello from bob").any (·.head? == some "hello from bob")
+    discard <| wait "bob reads alice" do return (← lineOf bob "hello from alice").any (·.head? == some "hello from alice")
     discard <| wait "alice's message is written: ✓" do
-      return (← lineOf alice "hello from alice").any (·.take 2 == ["me", "✓"])
+      return (← lineOf alice "hello from alice").any (· == ["hello from alice", "✓"])
     bob.click "draft"
     bob.typeText "bob read you"
     bob.click "send"
     discard <| wait "bob's next message acknowledges it: ✓✓" do
-      return (← lineOf alice "hello from alice").any (·.take 2 == ["me", "✓✓"])
+      return (← lineOf alice "hello from alice").any (· == ["hello from alice", "✓✓"])
   try run finally
     stop.set true
     for m in both do discard <| m.shell.inbox.close

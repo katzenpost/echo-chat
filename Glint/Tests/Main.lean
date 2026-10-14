@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import Glint.Tests.Core
 import Glint.Tests.Display
 import Glint.Tests.Command
+import Glint.Tests.State
 import Glint.Tests.App
 import Glint.Tests.Shot
 import Glint.Tests.Members
@@ -27,7 +28,7 @@ def main (args : List String) : IO UInt32 := do
     return 0
   let mut ok := true
   for (name, t) in [("core", CoreTests.tests), ("display", DisplayTests.tests),
-      ("command", CommandTests.tests), ("app", AppTests.tests), ("scenarios", Scenario.tests), ("members", Members.tests)] do
+      ("command", CommandTests.tests), ("state", StateTests.tests), ("app", AppTests.tests), ("scenarios", Scenario.tests), ("members", Members.tests)] do
     ok := (← runSuite name t) && ok
   -- Tasks of the shells may still be asleep; they would keep the process alive.
   IO.Process.exit (if ok then 0 else 1)

@@ -81,7 +81,9 @@ Any member can add more people the same way, and everyone hears of them.
 ## Using it
 
 The groups are on the left, the selected conversation in the middle, and on the right everyone
-who reads what is written there, with the start of each member's key. The log is below.
+who reads what is written there, with the start of each member's key. Messages are grouped: one
+sender's messages a few minutes apart sit under one header with their name and the time they were
+said or read here. The log is hidden until F2 shows it.
 
 | Button | |
 |---|---|
@@ -99,7 +101,7 @@ The **Send** button names the group the message goes to, and how many lines it i
 |---|---|
 | Ctrl+Enter | send |
 | Ctrl+PageUp, Ctrl+PageDown | the previous or next group |
-| F2 | hide or show the log |
+| F2 | show or hide the log |
 | F10 | blank the window at once, and bring it back |
 | Ctrl+Q | quit |
 
@@ -119,9 +121,10 @@ everything another member sends is untrusted.
   name cannot hold bidi controls, joiners, badges, or glint's own marks (`…`, `✓`), and is cut at
   30 characters. Names that look alike, names like ours and names mixing scripts show the start of
   the member's key, and are marked `(!)` among the members.
-- **A message cannot pass for another.** The sender and the delivery mark are drawn in columns of
-  their own, and all of a message's rows to their right. glint's notices are drawn in a panel,
-  after `—`, which no message has.
+- **A message cannot pass for another.** A run of messages begins with a header glint draws: the
+  sender's name in bold, flush left, and the time. Every row of a message is indented under it,
+  in regular weight, with our delivery mark in a column of its own, so no row of a message can
+  look like a header. glint's own notices are small, muted and centered, which no message is.
 - **Authority follows the user's click.** The message box only sends text; everything else is a
   button. A dialog opens only from the user's click, never from the network, and its accept
   button takes no click in the half second after it appears. A member to remove is chosen from

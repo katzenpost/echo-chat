@@ -93,6 +93,28 @@ def textsOf (r : Run sent) (k : String) : List String :=
 
 partial def kinds {Msg : Type} (n : Node Msg) : List String := n.kind :: n.children.flatMap kinds
 
+/-- The texts the widget keyed `k` draws, with their styles, in glint's dark theme. -/
+def stylesOf (r : Run sent) (k : String) : List (String × TextStyle) :=
+  match r.rt.tree.findKey? k with
+  | some n => (n.render { r.rt.env with theme := Theme.dark }).items.filterMap fun
+      | (_, .text _ t st) => some (t.text, st)
+      | _ => none
+  | none => []
+
+/-- Whether what the widget keyed `k` draws is centered in the conversation, within a few
+pixels. -/
+def centered (r : Run sent) (k : String) : Bool :=
+  let pane := ((r.rt.tree.findKey? "conversation").map (·.viewport)).getD default
+  let mid := (pane.x0 + pane.x1 - Widgets.gutter) / 2
+  match r.rt.tree.findKey? k with
+  | some n => (n.render r.rt.env).items.any fun
+      | (_, .text p t st) =>
+        let w := (r.rt.env.measure st t).1
+        let c := p.x + w / 2
+        c ≤ mid + px 8 && mid ≤ c + px 8 && w > 0
+      | _ => false
+  | none => false
+
 def line (id : Nat) (text : String) (sender : ByteArray := .empty) (status : Status := .sent) : Line :=
   { id, sender, text, status }
 
@@ -104,14 +126,20 @@ def chatWith (name : String) (log : List Line) : Chat :=
 def selection : TestM Unit := do
   let sent ← IO.mkRef #[]
   let r := begin sent
-  check "with no groups, the empty state explains what to do" ((textsOf r "empty") == ["No groups yet."])
+  check "with no groups, the empty state explains what to do" ((textsOf r "empty") == ["No groups yet"])
+  check "and offers to start or join one" ((r.rt.tree.findKey? "empty-new").isSome && (r.rt.tree.findKey? "empty-join").isSome)
   let s : State := { me := "alice", chats := [chatWith "g" [line 0 "one"], chatWith "h" [line 0 "a", line 1 "b"]] }
   let r ← state r s
   check "the first group is selected" (r.rt.model.selected == some "g")
-  check "the other's lines are unread" ((textsOf r "group:h").any (·.startsWith "h (2)"))
+  check "the other's lines are unread, its badge says how many" ((textsOf r "group:h") == ["h", "2"])
+    fun _ => toString (textsOf r "group:h")
   check "the selected one's are not" ((textsOf r "group:g") == ["g"]) fun _ => toString (textsOf r "group:g")
+  let only (k : String) (texts : List String) := (textsOf r k).filter (· != "—") == texts
+  check "the conversation shows the selected group's lines" (only "conversation" ["one"])
   let r ← click r "group:h"
   check "a click selects a group, by name" (r.rt.model.selected == some "h")
+  let only (k : String) (texts : List String) := (textsOf r k).filter (· != "—") == texts
+  check "and the conversation shows its lines alone" (only "conversation" ["a", "b"])
   check "and reads it" ((textsOf r "group:h") == ["h"]) fun _ => toString (textsOf r "group:h")
   let r ← click r "new-group"
   check "New group opens a dialog" (r.rt.model.dialog.any (·.kind == .newGroup))
@@ -128,8 +156,11 @@ def selection : TestM Unit := do
   check "F10 blanks the window" ((textsOf r "blank") == ["glint · F10 to return"] && (r.rt.tree.findKey? "groups").isNone)
   let r ← key r (.f 10)
   check "and F10 brings it back" (r.rt.tree.findKey? "groups").isSome
+  check "the log is hidden at first" ((r.rt.tree.findKey? "log").isNone)
   let r ← key r (.f 2)
-  check "F2 hides the log" ((r.rt.tree.findKey? "log").isNone)
+  check "F2 shows it" ((r.rt.tree.findKey? "log").isSome)
+  let r ← key r (.f 2)
+  check "and hides it again" ((r.rt.tree.findKey? "log").isNone)
 
 def origin : TestM Unit := do
   let sent ← IO.mkRef #[]
@@ -243,17 +274,25 @@ def rendering : TestM Unit := do
   let c := { c with log := [line 0 "carol joined", line 1 "hi" bob, line 2 long bob, line 3 hostile bob,
     line 4 "mine" me .pending, line 5 "sent" me] }
   let r ← state (begin sent) { me := "alice", chats := [c] }
-  let panelled (id : Nat) := ((r.rt.tree.findKey? s!"line:{id}").map fun n => (kinds n).contains "tip").getD false
-  check "a notice is drawn in a panel" (panelled 0)
-  check "a message never is" ([1, 2, 3, 4, 5].all (!panelled ·))
-  check "a notice begins with glint's dash" ((textsOf r "line:0").head? == some "—")
-  check "a message begins with who sent it" ((textsOf r "line:1").head? == some "~bob")
+  let t := Theme.dark
+  let styled (k : String) := stylesOf r k
+  check "a notice is small and muted" ((styled "line:0").all fun (_, st) => st.color == t.muted && st.size == t.captionSize)
+  check "and centered" (centered r "line:0")
+  check "a message is never muted, small or centered"
+    ([1, 2, 4, 5].all fun i => (styled s!"line:{i}").any (fun (x, st) => x != "" && st.color == t.text && st.size == t.fontSize)
+      && !centered r s!"line:{i}")
+  check "a message's rows are never bold" ([1, 2, 3, 4, 5].all fun i => (styled s!"line:{i}").all (!·.2.bold))
+  let head := styled "run:1"
+  check "a run of messages begins with who sent it, in bold" (head.head?.any fun (x, st) => x == "~bob" && st.bold)
+  check "bob's messages are one run" ((r.rt.tree.findKey? "run:1").isSome &&
+    (r.rt.tree.findKey? "run:2").isNone && (r.rt.tree.findKey? "run:3").isNone)
   let rows := textsOf r "line:2"
-  check "a long message is cut at 20 lines" (rows.length == 1 + 1 + 20)
-  check "with a marker" (rows.getLast? == some "[11 more lines not shown]")
-  check "our pending message is marked …" ((textsOf r "line:4").take 2 == ["me", "…"])
-  check "a written one ✓" ((textsOf r "line:5").take 2 == ["me", "✓"])
-  check "another's has no mark" ((textsOf r "line:1").take 2 == ["~bob", ""] || (textsOf r "line:1").take 2 == ["~bob", "hi"])
+  check "a long message is cut at 20 lines, with its mark" (rows.length == 20 + 1)
+  check "and a marker" (rows.dropLast.getLast? == some "[11 more lines not shown]")
+  check "our pending message is marked …" ((textsOf r "line:4") == ["mine", "…"])
+  check "a written one ✓" ((textsOf r "line:5") == ["sent", "✓"])
+  check "another's has no mark" ((textsOf r "line:1") == ["hi", ""])
+  check "our run is headed me" ((textsOf r "run:4").head? == some "me")
   -- Every text of the conversation is drawn within the conversation's box.
   let box := ((r.rt.tree.findKey? "conversation").map (·.viewport)).getD default
   let scene := match r.rt.present with | .request (.present s) => s | _ => Scene.empty
@@ -280,7 +319,38 @@ def theme : TestM Unit := do
   let rt := (Paw.Runtime.start light (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Env.mock.measure).1
   check "and light when asked" (background rt == some Theme.light.background)
 
+def grouping : TestM Unit := do
+  let sent ← IO.mkRef #[]
+  let some c ← DisplayTests.threeMembers | check "three members join a group" false
+  let bob := (c.names.pairs.find? (·.2 == "bob")).map (·.1) |>.getD .empty
+  let at_ (id : Nat) (text : String) (min : Nat) : Line := { line id text bob with time := some (1792055520000 + min * 60000) }
+  let c := { c with log := [at_ 0 "one" 0, at_ 1 "two" 4, at_ 2 "three" 12] }
+  let r ← state (begin sent) { me := "alice", chats := [c] }
+  check "messages a few minutes apart are one run" (((textsOf r "run:0").filter (· == "~bob")).length == 1)
+  check "one more than five minutes later starts another" (r.rt.tree.findKey? "run:2").isSome
+  check "each run's header has its time" ((textsOf r "run:0").take 2 == ["~bob", "09:12"] &&
+    (textsOf r "run:2").take 2 == ["~bob", "09:24"])
+  let c := { c with log := [at_ 0 "today" 0, { at_ 1 "tomorrow" 0 with time := some (1792055520000 + 86400000) }] }
+  let r ← state (begin sent) { me := "alice", chats := [c] }
+  check "a new day is marked with its date" (r.rt.tree.findKey? s!"day:{Display.dayOf 0 (1792055520000 + 86400000)}").isSome
+
+def buttonKinds : TestM Unit := do
+  let sent ← IO.mkRef #[]
+  let s : State := { me := "alice", chats := [chatWith "g" []] }
+  let r ← state (begin sent) s
+  let t := Theme.dark
+  let colorOf (r : Run sent) (k : String) := (stylesOf r k).head?.map (·.2.color)
+  check "Send is the main button" (colorOf r "send" == some t.mainButton.basic.fg)
+  check "Leave is destructive" (colorOf r "leave" == some t.destructiveButton.basic.fg)
+  let r ← click r "new-group"
+  check "a new group's Create is the main kind" (colorOf r "accept" == some t.mainButton.basic.fg)
+  let r ← key r .escape
+  let r ← click r "clear"
+  check "Clear's accept is destructive" (colorOf r "accept" == some t.destructiveButton.basic.fg)
+
 def tests : TestM Unit := do
+  grouping
+  buttonKinds
   theme
   selection
   origin

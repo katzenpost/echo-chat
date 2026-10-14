@@ -56,7 +56,7 @@ def conversation : IO (Option Chat) := do
           !(chatOf n 0 "friends").any (fun (c : Chat) => c.inducting.isSome) do
         return false
     let mut ok := true
-    for (who, text) in [(1, "Did everyone get the notes from Thursday?"),
+    for (who, text) in [(1, "Did everyone get the notes from Thursday?"), (1, "I put them in the shared folder."),
         (2, "Yes. The second half was a lot to take in.\nI'll write up a summary tonight."),
         (0, "Got them, thanks. Coffee on Saturday to go through it?"),
         (1, "Saturday works for me."), (2, "Same. 10 at the usual place?")] do
@@ -71,6 +71,10 @@ def readme (path : System.FilePath) : IO Unit := do
   let some friends ← conversation | throw (IO.userError "the conversation did not finish")
   let friends := { friends with log := friends.log.filter fun l =>
     !(l.text.startsWith "a new group" || l.text.startsWith "reading the voucher") }
+  -- Times as a morning's conversation would have them: 09:12 on, a minute or two apart.
+  let base := 1792055520000
+  let friends := { friends with log := friends.log.zipIdx.map fun (l, k) =>
+    { l with time := some (base + k * 95000) } }
   let work := AppTests.chatWith "work" [AppTests.line 0 "a new group: Invite, with a member's voucher code, adds them",
     AppTests.line 1 "added ~dana: they now read everything said in this group",
     AppTests.line 2 "added ~eli: they now read everything said in this group"]

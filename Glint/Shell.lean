@@ -4,6 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -/
 
 import Logger
+import Std.Time
 import Std.Sync.Channel
 import Glint.Exec
 
@@ -55,6 +56,10 @@ def Msg.describe : Msg → String
   | .inducted chat i => s!"{chat}: sealed the reply for {i.name.length}-character name"
   | .epoch n => s!"replica epoch {n}"
   | .failed chat what => s!"{chat}: {what}"
+
+/-- Milliseconds since the Unix epoch, by this machine's clock. -/
+def wallMs : IO Nat := do
+  return (← Std.Time.Timestamp.now).toMillisecondsSinceUnixEpoch.val.toNat
 
 structure Shell where
   backend : Backend
@@ -122,7 +127,7 @@ partial def drive (sh : Shell) : IO Unit := do
   if ← sh.stop.get then return
   log.debug m.describe
   if let .failed _ what := m then log.warning what
-  let (c, actions) := step (← sh.core.get) m
+  let (c, actions) := step { (← sh.core.get) with now := ← wallMs } m
   sh.core.set c
   try
     sh.save c.state

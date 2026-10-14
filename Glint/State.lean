@@ -45,6 +45,9 @@ structure Line where
   status : Status := .sent
   /-- The `Idx64` of our own message's box, once written. -/
   idx64 : Option Nat := none
+  /-- When it was said here, or read: milliseconds since the Unix epoch, by this machine's clock;
+  `none` for a line saved before glint kept times. -/
+  time : Option Nat := none
   deriving Inhabited
 
 /-- Joining a group through a contact voucher we minted. -/
@@ -128,13 +131,16 @@ instance : Persist Status where
     match (← ofTerm t : Nat) with
     | 0 => some .pending | 1 => some .sent | _ => none
 
+/-- A line is saved with its time; one saved before times were kept has six fields, and loads
+with none. -/
 instance : Persist Line where
   toTerm l := .TList #[toTerm l.id, toTerm l.sender, toTerm l.index, toTerm l.text,
-    toTerm l.status, toTerm l.idx64]
+    toTerm l.status, toTerm l.idx64, toTerm l.time]
   ofTerm t := do
-    let fs ← fieldsOf t 6
+    let fs := (fieldsOf t 7).orElse fun _ => fieldsOf t 6
+    let fs ← fs
     some ⟨← fieldAt fs 0, ← fieldAt fs 1, ← fieldAt fs 2, ← fieldAt fs 3, ← fieldAt fs 4,
-      ← fieldAt fs 5⟩
+      ← fieldAt fs 5, ← fieldAt fs 6⟩
 
 instance : Persist Joining where
   toTerm

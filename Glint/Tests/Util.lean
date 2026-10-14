@@ -15,6 +15,9 @@ def check (name : String) (ok : Bool) (detail : Unit → String := fun _ => "") 
     IO.println s!"FAIL {name}{if d.isEmpty then "" else ": " ++ d}"
     set (pass, fail + 1)
 
+def checkEq {α : Type} [BEq α] [Repr α] (name : String) (expected actual : α) : TestM Unit :=
+  check name (expected == actual) fun _ => s!"expected {repr expected}, got {repr actual}"
+
 def runSuite (name : String) (t : TestM Unit) : IO Bool := do
   let ((), (pass, fail)) ← t.run (0, 0)
   IO.println s!"{name}: {pass} passed, {fail} failed"

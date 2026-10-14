@@ -91,6 +91,9 @@ structure Core where
   state : State
   flight : Flight := {}
   maxPlaintext : Nat := 1530
+  /-- The time now, in milliseconds since the Unix epoch, given by the shell before each step:
+  each line a step adds is stamped with it. -/
+  now : Nat := 0
   deriving Inhabited
 
 abbrev CoreM := StateM (Core × Array Action)
@@ -444,14 +447,21 @@ def handle : Msg → CoreM Unit
 
 end Core
 
+/-- Each line added since the chats were as `before` holds, stamped with `now`. -/
+def stamp (before : State) (now : Nat) (s : State) : State :=
+  { s with chats := s.chats.map fun c =>
+      let from_ := ((before.chat? c.name).map (·.nextId)).getD 0
+      { c with log := c.log.map fun l => if l.id ≥ from_ && l.time.isNone then { l with time := some now } else l } }
+
 /-- One message: the new core, and the network work to start. -/
 def step (c : Core) (m : Msg) : Core × List Action :=
+  let before := c.state
   let ((), (c, as)) := (do Core.handle m; Core.pump).run (c, #[])
-  (c, as.toList)
+  ({ c with state := stamp before c.now c.state }, as.toList)
 
 /-- Begin again after a restart: whatever was under way is started afresh. An induction cannot
 be, since its reply may have gone; it is given up, and the voucher has to be given again. -/
-def resume (s : State) (maxPlaintext : Nat) : Core × List Action :=
+def resume (s : State) (maxPlaintext : Nat) (now : Nat := 0) : Core × List Action :=
   let go : CoreM Unit := do
     for c in s.chats do
       if c.writeCap.size = 0 then
@@ -466,8 +476,8 @@ def resume (s : State) (maxPlaintext : Nat) : Core × List Action :=
         Core.setChat ({ c with inducting := none }.notice
           "adding a member was interrupted: give their voucher code again")
     Core.pump
-  let ((), (c, as)) := go.run ({ state := s, maxPlaintext }, #[])
-  (c, as.toList)
+  let ((), (c, as)) := go.run ({ state := s, maxPlaintext, now }, #[])
+  ({ c with state := stamp s now c.state }, as.toList)
 
 /-- Whether any member has acknowledged our line `l`. -/
 def acknowledged (c : Chat) (l : Line) : Bool :=

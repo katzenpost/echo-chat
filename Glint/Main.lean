@@ -59,6 +59,13 @@ def connect (daemon : String) : IO ThinClient.Client := do
   | .ok c => pure c
   | .error e => throw (IO.userError s!"connecting to the daemon at {daemon}: {e}")
 
+/-- This machine's time zone now, in seconds from UTC. -/
+def localZone : IO Int := do
+  try
+    let rules ← Std.Time.Database.defaultGetLocalZoneRules
+    return (rules.timezoneAt (← Std.Time.Timestamp.now)).offset.second.val
+  catch _ => return 0
+
 def onSignals (log : Logger) : IO Unit := do
   for (sig, n) in [(Std.Async.Signal.sigterm, 15), (.sighup, 1), (.sigquit, 3)] do
     let w ← Std.Async.Signal.Waiter.mk sig false
@@ -83,8 +90,8 @@ def coalesce (post : State → IO Unit) (stop : IO.Ref Bool) (ms : UInt32 := 33)
 def describe (m : App.Model) : String :=
   let chats := m.state.chats.map fun c =>
     let lines := c.log.map fun l =>
-      let r := App.rowOf m.state.me c l
-      s!"{if r.notice then "—" else r.who.text}{r.mark}:{(l.text.replace "\n" "|")}"
+      let who := if l.sender.size == 0 then "—" else (Display.who m.state.me c l.sender).text
+      s!"{who}{App.markOf c l}:{(l.text.replace "\n" "|")}"
     let code := (App.Model.voucher? c).getD ""
     s!"{c.name}[joined={c.group.isSome} code={code} members={(c.group.map (·.readers.size)).getD 0} lines={lines}]"
   s!"selected={m.selected.getD ""} dialog={(m.dialog.map (repr ·.kind)).getD (repr "")} draft={m.draft.replace "\n" "|"} chats={chats}"
@@ -123,15 +130,16 @@ where
   onSignals log
   let title := "glint"
   let dark := (← IO.getEnv "PAW_THEME") != some "light"
+  let zone ← localZone
   if cfg.offline then
-    let init := App.Model.take { state, network := "offline", showLog := false, dark } state
+    let init := App.Model.take { state, network := "offline", dark, zone } state
     Paw.Linux.run (App.app (fun _ => pure ()) init) title 1000 700 describe
     IO.Process.exit 0
   IO.println s!"connecting to the client daemon at {cfg.daemon}"
   let client ← connect cfg.daemon
   let backend := Daemon.backend client
   log.notice s!"started as {me}, state in {dir}"
-  let (core, resumed) := resume state (← backend.maxPlaintext)
+  let (core, resumed) := resume state (← backend.maxPlaintext) (← wallMs)
   let stop ← IO.mkRef false
   let inbox ← Std.CloseableChannel.new (α := Msg)
   let post (m : Msg) : IO Unit := discard (inbox.send m)
@@ -142,7 +150,7 @@ where
     sh.start resumed
   let logs ← logLines.get
   let network := s!"daemon {cfg.daemon}"
-  let init := App.Model.take { state := core.state, network, logs, dark } core.state
+  let init := App.Model.take { state := core.state, network, logs, dark, zone } core.state
   try
     Paw.Linux.run (App.app post init [.producer producer (by decide)]) title 1000 700 describe
   finally

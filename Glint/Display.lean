@@ -96,6 +96,58 @@ def members (me : String) (c : Chat) : List Member :=
       (others.mergeSort (fun a b => a.1 ≤ b.1)).map fun (n, k) =>
         { label := SafeText.trusted "~" ++ (name n).toText, key := k, doubtful := doubt.contains k }
 
+/-- A time of day, `HH:MM`, at `offset` seconds from UTC. -/
+def clock (offset : Int) (ms : Nat) : String :=
+  let secs := ((ms / 1000 : Nat) : Int) + offset
+  let day := secs % 86400
+  let two (n : Int) := let s := toString n; if s.length < 2 then "0" ++ s else s
+  s!"{two (day / 3600)}:{two (day % 3600 / 60)}"
+
+/-- Which day a time falls on, at `offset` seconds from UTC: days since the Unix epoch. -/
+def dayOf (offset : Int) (ms : Nat) : Int := (((ms / 1000 : Nat) : Int) + offset) / 86400
+
+def monthNames : List String :=
+  ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/-- A day as `Mon D`, from days since the Unix epoch, by the proleptic Gregorian calendar. -/
+def date (day : Int) : String :=
+  -- Howard Hinnant's days_from_civil, inverted.
+  let z := day + 719468
+  let era := (if z ≥ 0 then z else z - 146096) / 146097
+  let doe := z - era * 146097
+  let yoe := (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+  let doy := doe - (365 * yoe + yoe / 4 - yoe / 100)
+  let mp := (5 * doy + 2) / 153
+  let d := doy - (153 * mp + 2) / 5 + 1
+  let m := if mp < 10 then mp + 3 else mp - 9
+  s!"{monthNames.getD (m - 1).toNat "?"} {d}"
+
+/-- Lines a conversation shows together: a run of messages from one sender, each within five
+minutes of the one before (as Element groups them), or a notice alone. -/
+inductive Run
+  | messages (sender : Key) (lines : List Line)
+  | notice (line : Line)
+
+def Run.first : Run → Option Line
+  | .messages _ ls => ls.head?
+  | .notice l => some l
+
+/-- How long apart two messages of one sender may be and still be one run. -/
+def runGap : Nat := 5 * 60 * 1000
+
+/-- A conversation's lines in runs. -/
+def runs (log : List Line) : List Run :=
+  let close (a b : Line) : Bool := match a.time, b.time with
+    | some x, some y => y ≤ x + runGap && x ≤ y + runGap
+    | _, _ => true
+  (log.foldl (fun (acc : List Run) l =>
+    if l.sender.size == 0 then .notice l :: acc
+    else match acc with
+      | .messages s ls :: rest =>
+        if s == l.sender && (ls.getLast?.all (close · l)) then .messages s (ls ++ [l]) :: rest
+        else .messages l.sender [l] :: acc
+      | _ => .messages l.sender [l] :: acc) []).reverse
+
 /-- Lines of a conversation not yet seen, by how many of each were. -/
 def unread (seen : List (String × Nat)) (c : Chat) : Nat :=
   c.log.length - ((seen.lookup c.name).getD 0)
