@@ -35,6 +35,6 @@ e2e-wayland:
 
 # Two windows over the docker mixnet's client daemon, as test-integration.sh starts it.
 test-integration:
-	lake build glint && DAEMON=127.0.0.1:33399 MINUTES=30 sh tests/e2e/mixnet.sh
+	lake build glint && DAEMON=127.0.0.1:33399 N=3 MINUTES=30 sh tests/e2e/mixnet.sh
 
 ci: test e2e

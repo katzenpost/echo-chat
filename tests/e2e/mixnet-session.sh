@@ -2,30 +2,43 @@
 # SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# Two glint windows on one X display, against a client daemon, driven with xdotool as two people
-# would: Alice founds a group, Bob joins it with a voucher code he copies, Alice invites him, they
-# exchange messages, and Bob's next message acknowledges Alice's. Run by mixnet.sh inside Xvfb.
-# DAEMON is the daemon's socket; MINUTES bounds each wait on the network.
+# N glint windows on one X display, against one client daemon, driven with xdotool as N people
+# would. The first founds a group; the others join it in waves, each member already in inviting
+# one joiner at a time, with the voucher code copied from the joiner's window. Then everyone sends,
+# everyone reads everyone, and a second round of messages acknowledges the first.
+# Run by mixnet.sh inside Xvfb. DAEMON is the daemon's socket, N the members (2 to 8), and
+# MINUTES bounds each wait on the network.
 set -u
 cd "$(dirname "$0")/../.."
 . tests/e2e/lib.sh
 DAEMON=${DAEMON:-@katzenpost}
+N=${N:-5}
 SECONDS_NET=$(( ${MINUTES:-10} * 60 ))
+ALL=$(echo alice bob carol dave erin frank grace heidi | cut -d' ' -f1-"$N")
+FIRST=alice
 
-start_glint alice --daemon "$DAEMON" --name alice --state "$WORK/alice"
-start_glint bob --daemon "$DAEMON" --name bob --state "$WORK/bob"
-WA=$(xdotool search --sync --pid "$PID_alice" | head -n 1)
-WB=$(xdotool search --sync --pid "$PID_bob" | head -n 1)
-# Side by side: with no window manager, a click goes to whichever window is on top there.
-xdotool windowmove --sync "$WA" 0 0
-xdotool windowmove --sync "$WB" 1050 0
-wait_for "$WORK/alice.layout" '^new-group ' || { fail "alice's window is up"; exit 1; }
-wait_for "$WORK/bob.layout" '^new-group ' || { fail "bob's window is up"; exit 1; }
+i=0
+for m in $ALL; do
+  start_glint "$m" --daemon "$DAEMON" --name "$m" --state "$WORK/$m"
+  w=$(xdotool search --sync --pid "$(eval echo "\$PID_$m")" | head -n 1)
+  eval "W_$m=$w"
+  # Three to a row: with no window manager, a click goes to whichever window is on top there.
+  xdotool windowmove --sync "$w" $(( i % 3 * 1050 )) $(( i / 3 * 750 ))
+  i=$((i + 1))
+done
+for m in $ALL; do
+  wait_for "$WORK/$m.layout" '^new-group ' || { fail "$m's window is up"; exit 1; }
+done
 sleep 1
+
+stop_all() {
+  for m in $ALL; do kill "$(eval echo "\$PID_$m")" 2>/dev/null; done
+  exit $FAILED
+}
 
 # Clicks the widget keyed $2 in member $1's window, which is given keyboard focus first.
 click() {
-  w=$WA; [ "$1" = bob ] && w=$WB
+  w=$(eval echo "\$W_$1")
   xdotool windowfocus --sync "$w"
   set -- $(center "$1" "$2")
   xdotool mousemove --window "$w" "$1" "$2" click 1
@@ -33,59 +46,92 @@ click() {
 }
 
 type_in() {
-  w=$WA; [ "$1" = bob ] && w=$WB
-  xdotool windowfocus --sync "$w"
+  xdotool windowfocus --sync "$(eval echo "\$W_$1")"
   sleep 0.6
   xdotool type --delay 20 "$2"
   sleep 0.3
 }
 
-stop_all() {
-  kill "$PID_alice" "$PID_bob" 2>/dev/null
-  exit $FAILED
+# Fills member $1's open dialog with $2 and accepts it.
+answer() {
+  click "$1" dialog-field
+  type_in "$1" "$2"
+  click "$1" accept
 }
+
+others() { for o in $ALL; do [ "$o" != "$1" ] && printf '%s ' "$o"; done; }
 
 expect_idle alice "an idle glint does not wake"
 
-click alice new-group
-click alice dialog-field
-type_in alice g
-click alice accept
-expect alice 'chats=\[g\[joined=true' "alice founds a group" 60 || stop_all
+click $FIRST new-group
+answer $FIRST g
+expect $FIRST 'chats=\[g\[joined=true' "$FIRST founds a group" 60 || stop_all
 
-click bob join-group
-click bob dialog-field
-type_in bob g
-click bob accept
-expect bob 'code=[A-Za-z0-9+/=]\{8,\}' "bob's window shows a voucher code" "$SECONDS_NET" || stop_all
-CODE=$(tail -n 1 "$WORK/bob.log" | sed 's/.*code=\([^ ]*\) .*/\1/')
-sleep 1
-click bob copy-voucher
-if [ "$(xclip -o -selection clipboard 2>/dev/null)" = "$CODE" ]; then ok "Copy puts the code on the clipboard"
-else fail "Copy puts the code on the clipboard"; fi
+# Everyone else asks to join at once; minting a voucher takes a trip across the mixnet.
+WAITING=$(others $FIRST)
+for m in $WAITING; do
+  click "$m" join-group
+  answer "$m" g
+done
+for m in $WAITING; do
+  expect "$m" 'code=[A-Za-z0-9+/=]\{8,\} ' "$m's window shows a voucher code" "$SECONDS_NET" || stop_all
+done
 
-click alice invite
-click alice dialog-field
-type_in alice "$CODE"
-click alice accept
-expect bob 'chats=\[g\[joined=true' "bob joins" "$SECONDS_NET" || stop_all
-expect alice 'members=1 ' "alice reads bob" "$SECONDS_NET" || stop_all
+IN=$FIRST
+copied=no
+while [ -n "$WAITING" ]; do
+  # Each member in invites one joiner; they are in once all of this wave have joined.
+  wave=""
+  for inviter in $IN; do
+    set -- $WAITING
+    [ $# -eq 0 ] && break
+    joiner=$1; shift
+    WAITING="$*"
+    code=$(tail -n 1 "$WORK/$joiner.log" | sed 's/.*code=\([^ ]*\) .*/\1/')
+    if [ $copied = no ]; then
+      click "$joiner" copy-voucher
+      if [ "$(xclip -o -selection clipboard 2>/dev/null)" = "$code" ]; then ok "Copy puts the code on the clipboard"
+      else fail "Copy puts the code on the clipboard"; fi
+      copied=yes
+    fi
+    click "$inviter" invite
+    answer "$inviter" "$code"
+    echo "     $inviter invites $joiner"
+    wave="$wave $joiner"
+  done
+  for joiner in $wave; do
+    expect "$joiner" 'chats=\[g\[joined=true' "$joiner joins" "$SECONDS_NET" || stop_all
+  done
+  IN="$IN$wave"
+done
 
-click bob draft
-type_in bob "hello from bob"
-click bob send
-click alice draft
-type_in alice "hello from alice"
-click alice send
-expect alice '~bob:hello from bob' "alice reads bob's message" "$SECONDS_NET"
-expect bob '~alice:hello from alice' "bob reads alice's message" "$SECONDS_NET"
-expect alice 'me✓:hello from alice' "alice's message is written" "$SECONDS_NET"
-click bob draft
-type_in bob "bob read you"
-click bob send
-expect alice 'me✓✓:hello from alice' "bob's next message acknowledges it" "$SECONDS_NET"
+# Members hear of those others added through Introductions.
+for m in $ALL; do
+  expect "$m" "members=$((N - 1)) " "$m reads all $((N - 1)) others" "$SECONDS_NET" || stop_all
+done
 
-xdotool windowfocus --sync "$WA"
+for m in $ALL; do
+  click "$m" draft
+  type_in "$m" "hello from $m"
+  click "$m" send
+done
+for m in $ALL; do
+  for o in $(others "$m"); do
+    expect "$m" "~$o:hello from $o" "$m reads $o" "$SECONDS_NET"
+  done
+done
+
+# Each next message acknowledges everything its sender has read.
+for m in $ALL; do
+  click "$m" draft
+  type_in "$m" "$m read everyone"
+  click "$m" send
+done
+for m in $ALL; do
+  expect "$m" "me✓✓:hello from $m" "$m's first message is acknowledged" "$SECONDS_NET"
+done
+
+xdotool windowfocus --sync "$(eval echo "\$W_$FIRST")"
 xdotool key ctrl+q
 sleep 2
 if kill -0 "$PID_alice" 2>/dev/null; then fail "Ctrl+Q quits"; else ok "Ctrl+Q quits"; fi

@@ -5,4 +5,4 @@ set -eu
 WORK=$(mktemp -d)
 export WORK
 trap 'rm -rf "$WORK"' EXIT
-env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 2100x800x24" sh "$(dirname "$0")/mixnet-session.sh"
+env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 3200x2300x24" sh "$(dirname "$0")/mixnet-session.sh"

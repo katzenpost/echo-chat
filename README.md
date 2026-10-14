@@ -137,5 +137,5 @@ everything another member sends is untrusted.
                        # members each with a shell and a window
     make e2e           # a saved state in a real window on Xvfb, driven with xdotool
     make shots         # pictures of the window, drawn offscreen, in shots/
-    DAEMON=@katzenpost sh tests/e2e/mixnet.sh   # two windows against a running kpclientd
+    N=5 DAEMON=@katzenpost sh tests/e2e/mixnet.sh   # N windows (2 to 8) in one group, against a running kpclientd
     ./test-integration.sh                       # the same over the docker mixnet
