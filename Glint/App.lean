@@ -93,13 +93,15 @@ structure Model where
   inner : Nat := 760
   /-- What glint is connected to. -/
   network : String := ""
+  /-- The dark theme, glint's own default; the light one only when asked for. -/
+  dark : Bool := true
   deriving Inhabited
 
 instance : BEq Model where
   beq a b := a.version == b.version && a.selected == b.selected && a.seen == b.seen &&
     a.logs == b.logs && a.showLog == b.showLog && a.blank == b.blank && a.draft == b.draft &&
     a.note == b.note && a.want == b.want && a.dialog == b.dialog && a.outer == b.outer &&
-    a.inner == b.inner && a.network == b.network
+    a.inner == b.inner && a.network == b.network && a.dark == b.dark
 
 namespace Model
 
@@ -345,7 +347,7 @@ def bindings : List (Widgets.KeyCombo × Msg) :=
    ({ key := .pageUp, ctrl := true }, .next false)]
 
 def view (m : Model) : Node Msg :=
-  Ui.keystroke bindings <|
+  Ui.keystroke bindings <| Ui.themed (if m.dark then Theme.dark else Theme.light) <|
   if m.blank then Ui.pad (px 24) (Ui.label "glint · F10 to return" "blank") else
   let (middle, right) := match m.current with
     | some c => (conversationPane m c, membersPane m c)

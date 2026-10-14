@@ -264,7 +264,24 @@ def rendering : TestM Unit := do
   check "every remote string sits within the conversation" inside
   check "the window's title is never set" (r.outs.all fun | .request (.setTitle _) => false | _ => true)
 
+/-- The background of the last fill covering the whole window: what the window is seen on. -/
+def background {caps : List Cap} {app : Paw.App caps} (rt : Runtime app) : Option Color :=
+  match rt.present with
+  | .request (.present s) => (s.items.filterMap fun
+    | (_, .fill r c _) => if r == rt.window then some c else none
+    | _ => none).getLast?
+  | _ => none
+
+def theme : TestM Unit := do
+  let sent ← IO.mkRef #[]
+  let r := begin sent
+  check "glint is dark by default" (background r.rt == some Theme.dark.background)
+  let light := App.app (fun m => sent.modify (·.push m)) { state := { me := "alice" }, dark := false }
+  let rt := (Paw.Runtime.start light (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Env.mock.measure).1
+  check "and light when asked" (background rt == some Theme.light.background)
+
 def tests : TestM Unit := do
+  theme
   selection
   origin
   sending

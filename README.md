@@ -58,7 +58,8 @@ instances, jam and katzenqt can share one daemon. Then:
 | `--offline` | show the saved state, without a daemon |
 
 `GLINT_LOG` sets the log level: `critical`, `error`, `warning`, `notice`, `info` (the default) or
-`debug`. `PAW_THEME=dark` gives the dark theme, and `PAW_REDUCE_MOTION=1` turns animations off.
+`debug`. glint is dark by default; `PAW_THEME=light` gives the light theme, and
+`PAW_REDUCE_MOTION=1` turns animations off.
 
 ### Starting a group and adding someone
 

@@ -33,6 +33,9 @@ def shots (dir : System.FilePath) : IO Unit := do
   let joining : Chat := { name := "theirs", joining := some (.awaiting "SGVsbG8gdm91Y2hlciBjb2RlIHRoYXQgaXMgcXVpdGUgbG9uZyBpbmRlZWQ=" .empty .empty .empty) }
   let (rt, _) := start.results [App.Msg.state { me := "alice", chats := [joining] }] 100
   write rt (dir / "joining.png")
+  let r ← AppTests.state (AppTests.begin sent) { me := "alice", chats := [AppTests.chatWith "g" [AppTests.line 0 "a notice"]] }
+  let r ← AppTests.click r "leave"
+  write r.rt (dir / "dialog.png")
 
 /-- Alice, Bob and Carol in a group over the simulated Pigeonhole, after a short conversation:
 Alice's state, with her last message still on its way. -/

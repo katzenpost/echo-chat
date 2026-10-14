@@ -122,8 +122,9 @@ where
   let state := { (saved.getD { me }) with me }
   onSignals log
   let title := "glint"
+  let dark := (← IO.getEnv "PAW_THEME") != some "light"
   if cfg.offline then
-    let init := App.Model.take { state, network := "offline", showLog := false } state
+    let init := App.Model.take { state, network := "offline", showLog := false, dark } state
     Paw.Linux.run (App.app (fun _ => pure ()) init) title 1000 700 describe
     IO.Process.exit 0
   IO.println s!"connecting to the client daemon at {cfg.daemon}"
@@ -141,7 +142,7 @@ where
     sh.start resumed
   let logs ← logLines.get
   let network := s!"daemon {cfg.daemon}"
-  let init := App.Model.take { state := core.state, network, logs } core.state
+  let init := App.Model.take { state := core.state, network, logs, dark } core.state
   try
     Paw.Linux.run (App.app post init [.producer producer (by decide)]) title 1000 700 describe
   finally
