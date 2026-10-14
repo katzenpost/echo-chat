@@ -19,6 +19,8 @@ jobs:
     env:
       ELAN_VERSION: 4.2.4
       ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+      # As the Makefile sets it: Paw's toolchain, for both Rust libraries.
+      RUSTUP_TOOLCHAIN: 1.99.0
     steps:
       - uses: actions/checkout@v4
       - name: install display tools
@@ -32,7 +34,7 @@ jobs:
           tar -xzf elan-x86_64-unknown-linux-gnu.tar.gz
           ./elan-init -y --default-toolchain none --no-modify-path
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      - run: rustup toolchain install stable --profile minimal
+      - run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
       - uses: actions/cache@v4
         with:
           path: |

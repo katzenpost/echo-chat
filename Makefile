@@ -2,6 +2,10 @@
 
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.elan/bin:$(PATH)
 
+# Paw's Rust crate pins this toolchain; the daemon socket's crate pins none. Both static libraries
+# carry Rust's std, so they must be built by the same rustc or the link finds it twice.
+export RUSTUP_TOOLCHAIN := 1.99.0
+
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
