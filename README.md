@@ -12,6 +12,8 @@ that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a g
 - The window is drawn with [Paw](https://github.com/katzenpost/paw), on X11 or Wayland, and glint
   logs with [Logger](https://github.com/katzenpost/Logger).
 
+![glint: groups on the left, a conversation with delivery marks in the middle, members with the start of their keys on the right](docs/screenshot.png)
+
 ## Building
 
 glint is Lean, with two small Rust libraries underneath it: Paw's, for the window, and one for
@@ -137,5 +139,6 @@ everything another member sends is untrusted.
                        # members each with a shell and a window
     make e2e           # a saved state in a real window on Xvfb, driven with xdotool
     make shots         # pictures of the window, drawn offscreen, in shots/
+    make screenshot    # docs/screenshot.png, from a conversation over the simulated Pigeonhole
     N=5 DAEMON=@katzenpost sh tests/e2e/mixnet.sh   # N windows (2 to 8) in one group, against a running kpclientd
     ./test-integration.sh                       # the same over the docker mixnet

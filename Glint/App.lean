@@ -291,7 +291,7 @@ def membersPane (m : Model) (c : Chat) : Node Msg :=
     Ui.list (Display.members m.state.me c) (fun mb => s!"member:{Display.hex mb.key}") row (px 2)] (px 6)
 
 def logPane (m : Model) : Node Msg :=
-  Ui.height (px 120) <| Ui.scroll (Ui.col (spacing := 0)
+  Ui.height (px 120) <| Ui.pad (px 6) <| Ui.scroll (Ui.col (spacing := 0)
     (m.logs.toList.map fun l => Ui.text (Display.text l))) "log" (follow := true)
 
 def status (m : Model) : String :=
@@ -353,7 +353,7 @@ def view (m : Model) : Node Msg :=
   let panes := Ui.split (groupsPane m) (Ui.split middle right m.inner (.ratio false) (key := "inner"))
     m.outer (.ratio true) (key := "outer")
   Ui.col ([panes] ++ (if m.showLog then [Ui.separator, logPane m] else []) ++
-    [Ui.text (Display.text (status m)) (overflow := .ellipsis) (key := "status")] ++
+    [Ui.pad (px 6) (Ui.text (Display.text (status m)) (overflow := .ellipsis) (key := "status"))] ++
     (m.dialog.toList.map (dialogView m))) (px 4)
 
 def app (post : Glint.Msg → IO Unit) (init : Model) (start : List (Cmd Msg caps .other) := []) :

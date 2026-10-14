@@ -5,7 +5,7 @@ export PATH := $(HOME)/.cargo/bin:$(HOME)/.elan/bin:$(PATH)
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
-.PHONY: build test run shots e2e e2e-offline e2e-wayland test-integration ci
+.PHONY: build test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci
 
 build:
 	lake exe cache get && lake build glint
@@ -20,6 +20,10 @@ run:
 # Pictures of the window, drawn offscreen, in shots/.
 shots:
 	lake build glint-test && lake exe glint-test --shot shots
+
+# The README's picture: Alice's window after a conversation over the simulated Pigeonhole.
+screenshot:
+	lake build glint-test && lake exe glint-test --readme docs/screenshot.png
 
 e2e: e2e-offline e2e-wayland
 

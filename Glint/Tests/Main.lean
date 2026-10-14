@@ -18,6 +18,9 @@ def main (args : List String) : IO UInt32 := do
   if let ["--shot", dir] := args then
     Shot.shots dir
     return 0
+  if let ["--readme", path] := args then
+    Shot.readme path
+    return 0
   if let ["--fixture", dir] := args then
     Shot.fixture dir
     return 0
