@@ -8,6 +8,7 @@ import Glint.Tests.Display
 import Glint.Tests.Command
 import Glint.Tests.App
 import Glint.Tests.Shot
+import Glint.Tests.Members
 
 /-! # glint's tests, in one process, with no daemon or window -/
 
@@ -22,6 +23,7 @@ def main (args : List String) : IO UInt32 := do
     return 0
   let mut ok := true
   for (name, t) in [("core", CoreTests.tests), ("display", DisplayTests.tests),
-      ("command", CommandTests.tests), ("app", AppTests.tests)] do
+      ("command", CommandTests.tests), ("app", AppTests.tests), ("members", Members.tests)] do
     ok := (← runSuite name t) && ok
-  return if ok then 0 else 1
+  -- Tasks of the shells may still be asleep; they would keep the process alive.
+  IO.Process.exit (if ok then 0 else 1)
