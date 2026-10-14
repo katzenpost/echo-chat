@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+
+name: Integration tests with the docker mixnet
+
+on:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-integration-docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ELAN_VERSION: 4.2.4
+      ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+      # As the Makefile sets it: Paw's toolchain, for both Rust libraries.
+      RUSTUP_TOOLCHAIN: 1.99.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure podman socket
+        run: systemctl --user start podman.socket
+      - name: install display tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xdotool xclip libxkbcommon-x11-0
+      - name: install elan
+        run: |
+          curl -fsSLO "https://github.com/leanprover/elan/releases/download/v${ELAN_VERSION}/elan-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${ELAN_SHA256}  elan-x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
+          tar -xzf elan-x86_64-unknown-linux-gnu.tar.gz
+          ./elan-init -y --default-toolchain none --no-modify-path
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .lake
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: build-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+          restore-keys: build-
+      - name: Build glint
+        run: lake exe cache get && lake build glint
+      - name: Run two windows against the docker mixnet
+        timeout-minutes: 60
+        run: ./test-integration.sh
