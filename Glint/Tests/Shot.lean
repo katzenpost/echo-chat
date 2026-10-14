@@ -63,7 +63,7 @@ def conversation : IO (Option Chat) := do
   if !ok then return none
   return chatOf net 0 "friends"
 
-/-- The picture in the README: Alice's window with three groups, one of them a conversation. -/
+/-- The picture in the README: Alice's window, in the dark theme, with three groups, one of them a conversation. -/
 def readme (path : System.FilePath) : IO Unit := do
   let some friends ← conversation | throw (IO.userError "the conversation did not finish")
   let friends := { friends with log := friends.log.filter fun l =>
@@ -73,7 +73,7 @@ def readme (path : System.FilePath) : IO Unit := do
     AppTests.line 2 "added ~eli: they now read everything said in this group"]
   let book : Chat := { name := "book club", joining := some (.awaiting "" .empty .empty .empty) }
   let app := App.app (fun _ => pure ()) { state := { me := "alice" }, network := "daemon @katzenpost" }
-  let rt := (Paw.Runtime.start app (Rect.ofXYWH 0 0 (px 1000) (px 640)) 0 Linux.measure (motion := false)).1
+  let rt := (Paw.Runtime.start app (Rect.ofXYWH 0 0 (px 1000) (px 640)) 0 Linux.measure (motion := false) (theme := Theme.dark)).1
   let logs := #["18:20:29.973 NOTI glint: started as alice", "18:21:02.114 INFO glint/net: friends: read box 41: 212 bytes",
     "18:21:15.611 INFO glint/driver: replica epoch 488", "18:21:40.020 INFO glint/net: friends: wrote job 7 at box 12"]
   let (rt, _) := rt.results [App.Msg.state { me := "alice", chats := [friends, work, book] }, .logs logs] 100
