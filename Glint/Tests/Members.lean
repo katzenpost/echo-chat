@@ -3,9 +3,10 @@ SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 SPDX-License-Identifier: AGPL-3.0-only
 -/
 
-import Glint.Shell
+import Glint.Presentation
+import GroupChatClient.GroupChatKatzenqt1.Shell
 import Glint.Tests.App
-import Glint.Tests.Sim
+import GroupChatClient.GroupChatKatzenqt1.Sim
 
 /-! # Two members, each with a window
 
@@ -17,6 +18,7 @@ a while. -/
 namespace Glint.Tests.Members
 
 open Glint Glint.Tests Paw Logger
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 
 /-- Calls to `b` one at a time, as the daemon takes them. -/
 def serialized (b : Backend) : IO Backend := do
@@ -48,11 +50,11 @@ structure Member where
 def start (backend : Backend) (me : String) (dir : System.FilePath) (log : Logger) (stop : IO.Ref Bool) :
     IO Member := do
   let latest ← IO.mkRef ({ me } : State)
-  let (core, resumed) := resume { me } (← backend.maxPlaintext)
+  let (core, resumed) := resume presentation { me } (← backend.maxPlaintext)
   let shell : Shell :=
     { backend, core := ← IO.mkRef core, inbox := ← Std.CloseableChannel.new,
       log := log.withModule s!"glint/{me}", statePath := dir / s!"{me}.cbor",
-      display := latest.set, stop }
+      display := latest.set, stop, app := "glint" }
   shell.start resumed
   let rt := (Paw.Runtime.start (memberApp shell me) (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Env.mock.measure).1
   return { me, shell, latest, rt := ← IO.mkRef rt, now := ← IO.mkRef 0, clipboard := ← IO.mkRef [] }

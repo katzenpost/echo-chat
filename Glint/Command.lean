@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 SPDX-License-Identifier: AGPL-3.0-only
 -/
 
-import Glint.Core
+import GroupChatClient.GroupChatKatzenqt1.Core
 
 /-! # What each action asks of the core
 
@@ -13,6 +13,7 @@ to select once it appears, and glint's note on it. -/
 namespace Glint.Command
 
 open CryptWalker.GroupChat.Member
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 
 structure Asked where
   msg : Option Msg := none

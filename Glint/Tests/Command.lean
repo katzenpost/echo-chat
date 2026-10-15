@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -/
 
 import Glint.Command
-import Glint.Shell
+import GroupChatClient.GroupChatKatzenqt1.Shell
 import Glint.Tests.Util
 
 /-! # What each action asks of the core -/
@@ -12,6 +12,7 @@ import Glint.Tests.Util
 namespace Glint.Tests.CommandTests
 
 open Glint Glint.Tests Glint.Command
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 open CryptWalker.GroupChat.Member
 
 def asks (a : Asked) (expected : String) : Bool := (a.msg.map (·.describe)) == some expected

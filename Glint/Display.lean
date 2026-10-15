@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -/
 
 import Paw.Text
-import Glint.State
+import GroupChatClient.GroupChatKatzenqt1.State
 
 /-! # What may reach the screen
 
@@ -15,6 +15,7 @@ member is named, since a display name is only what its owner chose. -/
 namespace Glint.Display
 
 open Paw Paw.Text
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 open CryptWalker.GroupChat.Member
 
 /-- Characters of a name shown. -/
