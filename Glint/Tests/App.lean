@@ -22,8 +22,13 @@ open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 abbrev Sent := IO.Ref (Array GroupChatKatzenqt1.Msg)
 
+/-- Where the tests keep files: the state directory, and a home with files to send. -/
+def testDir : System.FilePath := ".lake/glint-test"
+
 def mkApp (sent : Sent) (me : String := "alice") : Paw.App App.caps :=
-  App.app (fun m => sent.modify (·.push m)) { state := { me }, network := "test" }
+  let home := (testDir / "home").toString
+  App.app (fun m => sent.modify (·.push m))
+    { state := { me }, network := "test", stateDir := testDir / "state", home, downloads := home }
 
 /-- A runtime, the outputs of its last step, and the time. -/
 structure Run (sent : Sent) where

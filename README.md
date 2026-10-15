@@ -94,8 +94,20 @@ said or read here. The log is hidden until F2 shows it.
 | Clear | delete the selected conversation's lines here |
 | Scan | look again for messages a member's stream skipped |
 | Leave | stop reading and writing the group and delete it here, once you type its name |
+| Attach… | choose a file and send it to the selected group |
+| View, Save… | beside a file received: see a picture large, or copy the file out |
 
 The **Send** button names the group the message goes to, and how many lines it is.
+
+### Files
+
+Files travel as katzenqt's do, so glint, jam and katzenqt members can send each other files. A file,
+or any message too long for one box, is written to a stream of its own, a box at a time, and the
+group's stream then names that stream; members read it before what comes after it. A file can be
+up to 16 MB, but each box takes a trip across the mixnet, so a large file takes a long time: its
+line says how far it has gone. PNG and JPEG pictures are shown in the conversation, at most
+320 × 240, and large with View; other files show their name and size. Received files are kept in
+`attachments/` in the state directory, and Save… copies one out.
 
 | Key | |
 |---|---|
@@ -128,12 +140,19 @@ everything another member sends is untrusted.
 - **Authority follows the user's click.** The message box only sends text; everything else is a
   button. A dialog opens only from the user's click, never from the network, and its accept
   button takes no click in the half second after it appears. A member to remove is chosen from
-  the list, by key. Copy writes the clipboard only for a click on it. glint asks for the
+  the list, by key. Copy writes the clipboard only for a click on it. A file is read only once
+  you choose it and click Send, and one received is written outside the state directory only where
+  you save it, never over a file already there. glint asks for the
   clipboard and for running tasks, and for nothing else: no links, no notifications. The window's
   title is always "glint".
-- **On disk.** The state directory is created 0700, `state.cbor` and `glint.log` 0600. The log is
-  filtered like the screen and holds no message text. `state.cbor` is not encrypted: it holds
-  your write caps and every message. Clear deletes a conversation's lines, Leave the group.
+- **Pictures.** A picture received is decoded by Paw, which takes only PNG and JPEG and refuses one
+  larger than 8192 pixels a side or 64 MiB of pixels before decoding it. A file's name is cut to
+  ASCII letters, digits and `._-+()[]` and spaces before it is shown or kept.
+- **On disk.** The state directory is created 0700, `state.cbor`, `glint.log` and received files
+  0600. The log is
+  filtered like the screen and holds no message text. `state.cbor` and `attachments/` are not encrypted:
+  they hold your write caps and every message and file. Clear deletes a conversation's lines and
+  files, Leave the group.
 - **Leaving.** F10 blanks the window at once. SIGTERM, SIGHUP and SIGQUIT exit.
 
 ## Testing

@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import Paw
 import Glint.Command
 import Glint.Display
+import Glint.Disk
 
 /-! # The window
 
@@ -22,7 +23,10 @@ glint, not the sender, decides what each part of the window says:
   of a message is indented under it in regular weight, so none can pass for a header. glint's own
   notices are small, muted and centered, as no message is.
 - The message box only sends text. Everything else is a button, and what uses authority (a dialog,
-  copying) happens only for the user's own click. The window's title is always "glint". -/
+  copying, reading or writing a file) happens only for the user's own click. The window's title is
+  always "glint".
+- A file is read only once the user chose it and clicked Send, and one received is written out only
+  where they chose to save it; a picture received is shown from glint's own copy. -/
 
 namespace Glint.App
 
@@ -40,6 +44,12 @@ inductive DialogKind
   | remove
   | leave
   | clear
+  /-- Choose a file to send. -/
+  | attach
+  /-- Choose where to save a line's file. -/
+  | save
+  /-- A line's picture, large. -/
+  | view
   deriving BEq, Repr, Inhabited
 
 structure Dialog where
@@ -48,9 +58,21 @@ structure Dialog where
   /-- The group it is about. -/
   chat : Option String := none
   field : String := ""
-  /-- The member chosen, by the hex of their key. -/
+  /-- The member chosen, by the hex of their key; or the entry of the folder shown. -/
   pick : Option String := none
   note : String := ""
+  /-- The folder shown, and what it holds. -/
+  dir : String := ""
+  entries : List Disk.Entry := []
+  /-- The line whose file it is about. -/
+  line : Option Nat := none
+  deriving BEq
+
+/-- A picture a line carries, as far as it has been read. -/
+inductive Picture
+  | loading
+  | shown (img : Image)
+  | refused (why : String)
   deriving BEq
 
 inductive Msg
@@ -75,6 +97,17 @@ inductive Msg
   | quit
   /-- A message reached the core. -/
   | posted
+  | browse (dir : String)
+  | listed (dir : String) (entries : Except String (List Disk.Entry))
+  /-- An entry of the folder shown, clicked. -/
+  | entry (e : Disk.Entry)
+  /-- The folder above the one shown. -/
+  | up
+  | fileRead (chat : String) (r : Except String (String × ByteArray))
+  | saveAs (line : Nat)
+  | view (line : Nat)
+  | saved (r : Except String String)
+  | picture (file : String) (r : Except Disk.Unshown Image)
 
 structure Model where
   state : State
@@ -100,13 +133,22 @@ structure Model where
   dark : Bool := true
   /-- The local time zone, in seconds from UTC, for showing when lines were said. -/
   zone : Int := 0
+  /-- Where the core keeps its files, and where to look for files to send and save them. -/
+  stateDir : System.FilePath := "."
+  home : String := "."
+  downloads : String := "."
+  /-- The folder a file was last sent from. -/
+  lastDir : Option String := none
+  /-- The pictures lines carry, by their file. -/
+  pictures : List (String × Picture) := []
   deriving Inhabited
 
 instance : BEq Model where
   beq a b := a.version == b.version && a.selected == b.selected && a.seen == b.seen &&
     a.logs == b.logs && a.showLog == b.showLog && a.blank == b.blank && a.draft == b.draft &&
     a.note == b.note && a.want == b.want && a.dialog == b.dialog && a.outer == b.outer &&
-    a.inner == b.inner && a.network == b.network && a.dark == b.dark && a.zone == b.zone
+    a.inner == b.inner && a.network == b.network && a.dark == b.dark && a.zone == b.zone &&
+    a.lastDir == b.lastDir && a.pictures == b.pictures
 
 namespace Model
 
@@ -134,6 +176,13 @@ def voucher? (c : Chat) : Option String :=
   | some (.awaiting code ..) => some code
   | _ => none
 
+/-- A line of the selected group, by id. -/
+def line? (m : Model) (id : Nat) : Option Line := m.current.bind (·.log.find? (·.id == id))
+
+def pictureOf (m : Model) (a : Attachment) : Option Picture := m.pictures.lookup a.file
+
+def isPicture (a : Attachment) : Bool := Files.isImage a.filetype a.name
+
 /-- The member of the selected group whose key is `hex`. -/
 def memberByHex (m : Model) (hex : String) : Option CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member.Key :=
   (m.current.bind (·.group)).bind fun g => g.readers.keys.find? (Display.hex · == hex)
@@ -154,6 +203,7 @@ def confirmed (m : Model) (d : Dialog) : Command.Asked :=
   | .invite => Command.invite d.chat d.field
   | .leave => Command.leave d.chat d.field
   | .clear => Command.clear d.chat
+  | .attach | .save | .view => {}
   | .remove => match d.pick.bind m.memberByHex with
     | some k => Command.remove m.state d.chat k
     | none => { note := "choose a member first" }
@@ -162,19 +212,44 @@ def needsGroup : DialogKind → Bool
   | .newGroup | .join => false
   | _ => true
 
+def browse {o : Origin} (dir : String) : UpdateM Model Msg caps o Unit := do
+  let home := (← get).1.home
+  emit (.task (return .listed dir (← Disk.list (Disk.expand home dir))) (by decide))
+
+/-- Read the pictures of the selected conversation not read yet. A file not there yet is tried
+again with the next state. -/
+def wantPictures {o : Origin} : UpdateM Model Msg caps o Unit := do
+  let m := (← get).1
+  let some c := m.current | return
+  for l in c.log do
+    let some a := l.attachment | continue
+    if !Model.isPicture a || (m.pictureOf a).isSome then continue
+    modify fun (m, cs) => ({ m with pictures := (a.file, .loading) :: m.pictures }, cs)
+    let path := m.stateDir / a.file
+    emit (.task (return .picture a.file (← Disk.picture path)) (by decide))
+
+/-- The path in the folder shown of the entry `name`. -/
+def inDir (d : Dialog) (name : String) : String := (System.FilePath.mk d.dir / name).toString
+
 def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg → UpdateM Model Msg caps o Unit
-  | _, .state s => modify fun (m, cs) => (m.take s, cs)
+  | _, .state s => do
+    modify fun (m, cs) => (m.take s, cs)
+    wantPictures
   | _, .logs lines => modify fun (m, cs) => ({ m with logs := lines }, cs)
-  | _, .select chat => modify fun (m, cs) =>
-    if m.state.chats.any (·.name == chat) then ((({ m with selected := some chat } : Model)).markSeen, cs)
-    else (m, cs)
-  | _, .next forward => modify fun (m, cs) =>
-    let names := m.state.chats.map (·.name)
-    let n := names.length
-    if n == 0 then (m, cs) else
-    let i := ((m.selected.bind fun s => names.idxOf? s)).getD 0
-    let j := if forward then (i + 1) % n else (i + n - 1) % n
-    ((({ m with selected := names[j]? } : Model)).markSeen, cs)
+  | _, .select chat => do
+    modify fun (m, cs) =>
+      if m.state.chats.any (·.name == chat) then ((({ m with selected := some chat } : Model)).markSeen, cs)
+      else (m, cs)
+    wantPictures
+  | _, .next forward => do
+    modify fun (m, cs) =>
+      let names := m.state.chats.map (·.name)
+      let n := names.length
+      if n == 0 then (m, cs) else
+      let i := ((m.selected.bind fun s => names.idxOf? s)).getD 0
+      let j := if forward then (i + 1) % n else (i + n - 1) % n
+      ((({ m with selected := names[j]? } : Model)).markSeen, cs)
+    wantPictures
   | _, .draft s => modify fun (m, cs) => ({ m with draft := s }, cs)
   | _, .send => do
     let m := (← get).1
@@ -182,15 +257,92 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg �
     if a.msg.isSome then modify fun (m, cs) => ({ m with draft := "" }, cs)
     perform post a
   | _, .scan => do perform post (Command.scan (← get).1.selected)
-  | .user d, .ask kind => modify fun (m, cs) =>
-    if needsGroup kind && m.current.isNone then ({ m with note := "select a group first" }, cs)
-    else ({ m with dialog := some { kind, modal := Modal.open d, chat := m.selected } }, cs)
+  | .user d, .ask kind => do
+    let m := (← get).1
+    if needsGroup kind && m.current.isNone then
+      modify fun (m, cs) => ({ m with note := "select a group first" }, cs)
+      return
+    let dir := m.lastDir.getD m.home
+    modify fun (m, cs) => ({ m with dialog := some { kind, modal := Modal.open d, chat := m.selected, dir := dir } }, cs)
+    if kind == .attach then browse dir
   | .other, .ask _ => pure ()
+  | .user d, .saveAs id => do
+    let m := (← get).1
+    let some a := (m.line? id).bind (·.attachment) | return
+    let dir := m.downloads
+    let field := (System.FilePath.mk dir / a.name).toString
+    let dialog : Dialog := { kind := .save, modal := Modal.open d, chat := m.selected, line := some id, dir, field }
+    modify fun (m, cs) => ({ m with dialog := some dialog }, cs)
+    browse dir
+  | .other, .saveAs _ => pure ()
+  | .user d, .view id => modify fun (m, cs) =>
+    if ((m.line? id).bind (·.attachment)).isNone then (m, cs)
+    else ({ m with dialog := some { kind := .view, modal := Modal.open d, chat := m.selected, line := some id } }, cs)
+  | .other, .view _ => pure ()
+  | _, .browse dir => browse dir
+  | _, .listed dir r => modify fun (m, cs) =>
+    let name := ((m.dialog.bind (·.line)).bind m.line? |>.bind (·.attachment)).map (·.name)
+    ({ m with dialog := m.dialog.map fun d =>
+        match r with
+        | .ok entries =>
+          let field := match d.kind, name with
+            | .save, some n => (System.FilePath.mk dir / n).toString
+            | _, _ => d.field
+          { d with dir, entries, pick := none, note := "", field }
+        | .error e => { d with note := Display.logLine e } }, cs)
+  | _, .entry e => do
+    let some d := (← get).1.dialog | return
+    if e.dir then browse (inDir d e.name)
+    else modify fun (m, cs) => ({ m with dialog := some { d with pick := some e.name, field := inDir d e.name } }, cs)
+  | _, .up => do
+    let some d := (← get).1.dialog | return
+    let some parent := (System.FilePath.mk d.dir).parent | return
+    browse parent.toString
+  | _, .fileRead chat r => do
+    let some d := (← get).1.dialog | return
+    match r with
+    | .ok (name, bytes) =>
+      modify fun (m, cs) => ({ m with dialog := none, lastDir := some d.dir }, cs)
+      perform post { msg := some (.sendFile chat name bytes), note := s!"sending {Files.safeName name}" }
+    | .error e => modify fun (m, cs) => ({ m with dialog := some { d with note := Display.logLine e } }, cs)
+  | _, .saved r => modify fun (m, cs) =>
+    match r with
+    | .ok path => ({ m with dialog := none, note := s!"saved {path}" }, cs)
+    | .error e => ({ m with dialog := m.dialog.map ({ · with note := Display.logLine e }) }, cs)
+  | _, .picture file r => modify fun (m, cs) =>
+    let rest := m.pictures.filter (·.1 != file)
+    let pictures := match r with
+      | .ok img => (file, .shown img) :: rest
+      | .error .missing => rest
+      | .error (.refused why) => (file, .refused why) :: rest
+    ({ m with pictures }, cs)
   | _, .field s => modify fun (m, cs) => ({ m with dialog := m.dialog.map ({ · with field := s }) }, cs)
   | _, .pick k => modify fun (m, cs) => ({ m with dialog := m.dialog.map ({ · with pick := some k }) }, cs)
   | _, .confirm => do
     let m := (← get).1
     let some d := m.dialog | return
+    match d.kind with
+    | .attach =>
+      let some chat := d.chat | return
+      if d.field.trimAscii.isEmpty then
+        modify fun (m, cs) => ({ m with dialog := some { d with note := "choose a file first" } }, cs)
+        return
+      let path := Disk.expand m.home d.field.trimAscii.toString
+      emit (.task (return .fileRead chat (← Disk.readUpload path)) (by decide))
+      return
+    | .save =>
+      let some a := (d.line.bind m.line?).bind (·.attachment) | return
+      if d.field.trimAscii.isEmpty then
+        modify fun (m, cs) => ({ m with dialog := some { d with note := "say where to save it" } }, cs)
+        return
+      let dst := Disk.expand m.home d.field.trimAscii.toString
+      let src := m.stateDir / a.file
+      emit (.task (return .saved ((← Disk.copyOut src dst).map fun _ => dst.toString)) (by decide))
+      return
+    | .view =>
+      modify fun (m, cs) => ({ m with dialog := none }, cs)
+      return
+    | _ => pure ()
     let a := confirmed m d
     if a.msg.isNone then
       modify fun (m, cs) => ({ m with dialog := some { d with note := a.note } }, cs)
@@ -223,18 +375,47 @@ def markOf (c : Chat) (l : Line) : String :=
     | .pending => "…"
     | .sent => if acknowledged c l then "✓✓" else "✓"
 
-/-- A message as drawn: its lines and our mark, so that one that did not change is not built
-again. -/
+/-- The largest a picture is shown in a conversation, and in its own dialog. -/
+def thumbW : Nat := 320
+def thumbH : Nat := 240
+def largeW : Nat := 760
+def largeH : Nat := 480
+
+/-- A file a message carries, as drawn: its picture, at the size shown, if it is one. -/
+structure FileRow where
+  line : Nat
+  name : SafeText
+  detail : String
+  picture : Option (Image × Nat × Nat) := none
+  deriving BEq
+
+/-- A message as drawn: its lines or its file, and our mark, so that one that did not change is
+not built again. -/
 structure MessageRow where
   lines : List SafeText
   mark : String
+  file : Option FileRow := none
   deriving BEq, TypeName
+
+def pictureView (img : Image) (w h : Nat) (name : SafeText) (key : String) : Node Msg :=
+  Ui.width (px w) <| Ui.height (px h) <|
+    Ui.image img (.text (SafeName.filter name.text)) .either (key := some key)
+
+/-- A file: its picture, then its name, size and buttons. -/
+def fileView (f : FileRow) : List (Node Msg) :=
+  let picture := f.picture.toList.map fun (img, w, h) =>
+    Ui.row [pictureView img w h f.name s!"picture:{f.line}", Ui.spacer]
+  let viewButton := if f.picture.isSome then [Ui.flatButton "View" (.view f.line) s!"view:{f.line}"] else []
+  picture ++ [Ui.row ([Ui.text f.name, Ui.text (SafeText.trusted f.detail) (tone := .muted) (size := .caption)] ++
+    viewButton ++ [Ui.flatButton "Save…" (.saveAs f.line) s!"save:{f.line}", Ui.spacer]) (px 6)]
 
 /-- Every row of a message is indented under its run's header and to the left of its mark, so no
 row of it can pass for a header, which is bold and flush, or for a notice, which is centered. -/
 def messageView (r : MessageRow) : Node Msg :=
-  Ui.row [Ui.width (px 12) Ui.spacer,
-    Ui.col (spacing := 0) (r.lines.map fun t => Ui.text t (maxLines := 40)), Ui.spacer,
+  let body := match r.file with
+    | some f => fileView f
+    | none => r.lines.map fun t => Ui.text t (maxLines := 40)
+  Ui.row [Ui.width (px 12) Ui.spacer, Ui.col (spacing := px 4) body, Ui.spacer,
     Ui.width (px 24) (Ui.caption (SafeText.trusted r.mark))] (px 6)
 
 /-- A notice of glint's as drawn. -/
@@ -256,6 +437,22 @@ def rule : Node Msg := Ui.height (px 1) Ui.separator
 
 def timeOf (m : Model) (l : Line) : String := (l.time.map (Display.clock m.zone)).getD ""
 
+/-- How far our upload of line `l` has gone, while it is under way. -/
+def sending (c : Chat) (l : Line) : Option String := do
+  let j ← c.jobs.find? (·.line == some l.id)
+  let u ← j.upload
+  if u.sent < u.total then some s!"sending, {u.sent * 100 / max u.total 1}%" else none
+
+def fileRow (m : Model) (c : Chat) (l : Line) (a : Attachment) : FileRow :=
+  let size := Core.sizeText a.size
+  let (picture, note) := match m.pictureOf a with
+    | some (.shown img) => let (w, h) := Disk.fit img.w img.h thumbW thumbH; (some (img, w, h), none)
+    | some (.refused why) => (none, some s!"picture {why}")
+    | some .loading => (none, none)
+    | none => (none, if Model.isPicture a then some "not received yet" else none)
+  let detail := " · ".intercalate ([size] ++ (sending c l).toList ++ note.toList)
+  { line := l.id, name := Display.text a.name, detail, picture }
+
 /-- A conversation as runs: each run of one sender's messages under one header, glint's notices
 alone, and a date between runs of different days. -/
 def conversation (m : Model) (c : Chat) : Node Msg :=
@@ -273,10 +470,14 @@ def conversation (m : Model) (c : Chat) : Node Msg :=
       | .messages sender ls =>
         let head := headerView (Display.who me c sender) ((ls.head?.map (timeOf m)).getD "")
         Ui.col (spacing := px 2) (head :: ls.map fun l =>
-          Ui.lazy ({ lines := Display.body l.text, mark := markOf c l } : MessageRow) messageView
+          Ui.lazy ({ lines := Display.body l.text, mark := markOf c l,
+                     file := l.attachment.map (fileRow m c l) } : MessageRow) messageView
             (key := some s!"line:{l.id}")) (key := s!"run:{(ls.head?.map (·.id)).getD 0}")
     (thisDay.orElse fun _ => day, items ++ dated ++ [node])) (none, [])
-  Ui.scroll (Ui.pad (px 12) (Ui.col items (px 12))) "conversation" (follow := true)
+  let arriving := c.downloads.map fun d =>
+    Ui.lazy ({ lines := [Display.who me c d.stream ++ SafeText.trusted " is sending a file or a long message…"] } : NoticeRow)
+      noticeView (key := some s!"arriving:{Display.hex d.stream}")
+  Ui.scroll (Ui.pad (px 12) (Ui.col (items ++ arriving) (px 12))) "conversation" (follow := true)
 
 def groupRowView (m : Model) (c : Chat) : Node Msg :=
   let n := Display.unread m.seen c
@@ -335,7 +536,8 @@ def conversationPane (m : Model) (c : Chat) : Node Msg :=
     Ui.keystroke [({ key := .enter, ctrl := true }, .send)]
       (Ui.textArea m.draft .draft { rows := 3, placeholder := SafeText.trusted "a message" } "draft"),
     Node.container (box { alignV := .bottom })
-      [Ui.enabled joined (Ui.mainButton (sendCaption c m.draft) .send "send")]] (px 12)
+      [Ui.row [Ui.enabled joined (Ui.button "Attach…" (.ask .attach) "attach"),
+        Ui.enabled joined (Ui.mainButton (sendCaption c m.draft) .send "send")] (px 6)]] (px 12)
   Ui.col ([header, rule] ++ voucher ++ [conversation m c, rule, composer]) 0
 
 def membersPane (m : Model) (c : Chat) : Node Msg :=
@@ -366,6 +568,13 @@ def statusBar (m : Model) : Node Msg :=
 
 def accept (caption : String) (kind : Widgets.ButtonKind) : Node Msg :=
   Node.leaf (Widgets.button (SafeText.trusted caption) .confirm (designated := true) (kind := kind)) "accept"
+
+/-- A folder's entries to choose from, and the folder above. -/
+def browser (d : Dialog) : List (Node Msg) :=
+  let caption (e : Disk.Entry) := if e.dir then e.name ++ "/" else s!"{e.name}  ({Core.sizeText e.size})"
+  let picked := d.pick.bind fun p => d.entries.find? (·.name == p)
+  [Ui.row [Ui.caption (Display.text d.dir) "dir", Ui.spacer, Ui.flatButton "Up" .up "up"] (px 6),
+   Ui.selectList d.entries picked .entry caption (fun e => "entry:" ++ e.name) (rows := 10) (key := "entries")]
 
 def dialogView (m : Model) (d : Dialog) : Node Msg :=
   let group := (Display.name (d.chat.getD "")).text
@@ -403,6 +612,25 @@ def dialogView (m : Model) (d : Dialog) : Node Msg :=
         field "the group's name"] "Leave" .destructive
   | .clear => body s!"Clear {group}"
       [Ui.paragraph s!"Delete this conversation's lines here? The other members keep theirs."] "Clear" .destructive
+  | .attach => body s!"Send a file to {group}"
+      (browser d ++ [field "the file's path",
+        Ui.paragraph s!"Everyone in {group} will be able to read it. At most {Files.maxFile / (1024 * 1024)} MB."])
+      "Send" .main
+  | .save =>
+    let name := ((d.line.bind m.line?).bind (·.attachment)).map (·.name) |>.getD "the file"
+    body s!"Save {name}" (browser d ++ [field "where to save it"]) "Save" .main
+  | .view =>
+    let a := (d.line.bind m.line?).bind (·.attachment)
+    let name := (a.map (·.name)).getD ""
+    let picture := match a.bind m.pictureOf with
+      | some (.shown img) =>
+        let (w, h) := Disk.fit img.w img.h largeW largeH
+        [Ui.row [Ui.spacer, pictureView img w h (Display.text name) "picture-large", Ui.spacer]]
+      | _ => [Ui.paragraph "The picture cannot be shown."]
+    Ui.dialog d.modal (SafeName.filter name)
+      (Ui.width (px largeW) (Ui.col (picture ++ [Ui.row [Ui.text (Display.text name) (overflow := .ellipsis),
+        Ui.spacer, Ui.button "Save…" (.saveAs (d.line.getD 0)) "view-save", accept "Close" .main] (px 6)]) (px 12)))
+      .dismiss
 
 def bindings : List (Widgets.KeyCombo × Msg) :=
   [({ key := .char 'q', ctrl := true }, .quit), ({ key := .f 10 }, .toggleBlank),

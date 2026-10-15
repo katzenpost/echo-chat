@@ -5,6 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 import Paw.Linux
 import Glint.Tests.App
+import Glint.Tests.Files
 
 /-! # Pictures of the window
 
@@ -38,6 +39,26 @@ def shots (dir : System.FilePath) : IO Unit := do
   let r ← AppTests.state (AppTests.begin sent) { me := "alice", chats := [AppTests.chatWith "g" [AppTests.line 0 "a notice"]] }
   let r ← AppTests.click r "leave"
   write r.rt (dir / "dialog.png")
+  FilesTests.setup
+  let me := (c.group.map (·.me)).getD .empty
+  let files := { c with
+    log := [AppTests.line 0 "look at this" bob, { FilesTests.picture 1 "pic.png" "attachments/g/0-1-pic.png" with sender := bob },
+      { FilesTests.picture 2 "report.txt" "attachments/g/0-2-report.txt" "arbitrary" with sender := bob },
+      { FilesTests.picture 3 "cat.png" "attachments/g/0-3-cat.png" with sender := me, status := .pending }],
+    jobs := [{ id := 0, box := .empty, line := some 3, upload := some { file := "", boxSize := 1530, total := 40, sent := 13 } }] }
+  IO.FS.writeBinFile (FilesTests.stateDir / "attachments" / "g" / "0-3-cat.png") (FilesTests.png 200 120)
+  let measured : AppTests.Run sent :=
+    { rt := (Paw.Runtime.start (AppTests.mkApp sent) (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Linux.measure (motion := false)).1 }
+  let r ← AppTests.state measured { me := "alice", chats := [files] }
+  let r ← AppTests.state r { me := "alice", chats := [files] }
+  write r.rt (dir / "files.png")
+  let r ← AppTests.click r "attach"
+  write r.rt (dir / "attach.png")
+  let r ← AppTests.click r "cancel"
+  let r ← AppTests.click r "view:1"
+  write r.rt (dir / "view.png")
+  -- The pictures live as long as the model holding them, which must outlive the drawing.
+  discard <| AppTests.click r "accept"
 
 /-- Alice, Bob and Carol in a group over the simulated Pigeonhole, after a short conversation:
 Alice's state, with her last message still on its way. -/
