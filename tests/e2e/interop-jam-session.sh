@@ -37,10 +37,10 @@ type_in() { sleep 0.6; xdotool type --delay 20 "$1"; sleep 0.3; }
 
 jam_line() { tmux send-keys -t "$T" -l "$1"; tmux send-keys -t "$T" Enter; }
 
-# Waits for jam's screen to show $1.
+# Waits for jam's screen to show a line matching the extended regular expression $1.
 jam_shows() {
   i=0
-  while ! tmux capture-pane -t "$T" -p -J | grep -qF -- "$1"; do
+  while ! tmux capture-pane -t "$T" -p -J | grep -qE -- "$1"; do
     i=$((i + 1))
     if [ $i -gt $(( $3 * 2 )) ]; then fail "$2"; tmux capture-pane -t "$T" -p | tail -n 15; return 1; fi
     sleep 0.5
@@ -72,7 +72,7 @@ fi
 jam_line "hello from jam"
 click draft; type_in "hello from glint"; click send
 expect glint '~jam:hello from jam' "glint reads jam's message" "$SECONDS_NET"
-jam_shows "~glint: hello from glint" "jam reads glint's message" "$SECONDS_NET"
+jam_shows "~glint +hello from glint" "jam reads glint's message" "$SECONDS_NET"
 jam_line "jam read you"
 expect glint 'me✓✓:hello from glint' "jam's next message acknowledges glint's" "$SECONDS_NET"
 stop_all
