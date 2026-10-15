@@ -5,7 +5,8 @@
 # N glint windows on one X display, against one client daemon, driven with xdotool as N people
 # would. The first founds a group; the others join it in waves, each member already in inviting
 # one joiner at a time, with the voucher code copied from the joiner's window. Then everyone sends,
-# everyone reads everyone, and a second round of messages acknowledges the first.
+# everyone reads everyone, and a second round of messages acknowledges the first. Last, the first
+# sends a picture, which everyone else receives and shows.
 # Run by mixnet.sh inside Xvfb. DAEMON is the daemon's socket, N the members (2 to 8), and
 # MINUTES bounds each wait on the network.
 set -u
@@ -129,6 +130,23 @@ for m in $ALL; do
 done
 for m in $ALL; do
   expect "$m" "me✓✓:hello from $m" "$m's first message is acknowledged" "$SECONDS_NET"
+done
+
+# A picture too long for a box goes through a substream; everyone else shows it in the conversation.
+python3 - "$WORK/sky.png" <<'PY'
+import random, struct, sys, zlib
+w, h = 64, 48
+random.seed(1)
+rows = b"".join(b"\0" + bytes(random.randrange(256) for _ in range(3 * w)) for _ in range(h))
+chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+open(sys.argv[1], "wb").write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+  + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+PY
+click $FIRST attach
+answer $FIRST "$WORK/sky.png"
+for m in $(others $FIRST); do
+  expect "$m" "~$FIRST:\[file sky.png, " "$m receives $FIRST's picture" "$SECONDS_NET" &&
+    if wait_for "$WORK/$m.layout" '^picture:' 30; then ok "$m shows it"; else fail "$m shows it"; fi
 done
 
 xdotool windowfocus --sync "$(eval echo "\$W_$FIRST")"

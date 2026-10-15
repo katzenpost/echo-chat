@@ -133,8 +133,12 @@ where
   let title := "glint"
   let dark := (← IO.getEnv "PAW_THEME") != some "light"
   let zone ← localZone
+  let home := (← IO.getEnv "HOME").getD dir.toString
+  let downloads := System.FilePath.mk home / "Downloads"
+  let downloads := if ← downloads.isDir then downloads.toString else home
+  let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads }
   if cfg.offline then
-    let init := App.Model.take { state, network := "offline", dark, zone } state
+    let init := App.Model.take { base with network := "offline" } state
     Paw.Linux.run (App.app (fun _ => pure ()) init) title 1000 700 describe
     IO.Process.exit 0
   IO.println s!"connecting to the client daemon at {cfg.daemon}"
@@ -152,7 +156,7 @@ where
     sh.start resumed
   let logs ← logLines.get
   let network := s!"daemon {cfg.daemon}"
-  let init := App.Model.take { state := core.state, network, logs, dark, zone } core.state
+  let init := App.Model.take { base with state := core.state, network, logs } core.state
   try
     Paw.Linux.run (App.app post init [.producer producer (by decide)]) title 1000 700 describe
   finally
