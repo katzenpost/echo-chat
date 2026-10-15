@@ -28,7 +28,7 @@ rev = "4bbfd6bb9df6bc9ce0d31252afff86d48683c9f2"
 [[require]]
 name = "group_chat_client"
 git = "https://github.com/katzenpost/group_chat_client.git"
-rev = "724f36b3c85a8f29e9662950dde5b1cb5d62a44e"
+rev = "7a34c6274f13e7a1d6c216a2f23f822fddad610a"
 
 # Last, so that its pin wins over the older ones its dependents carry.
 [[require]]
