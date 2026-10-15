@@ -28,7 +28,8 @@ namespace Glint.App
 
 open Paw
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.GroupChat.Member
+open CryptWalker.Protocols.GroupComm.Common
+open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 abbrev caps : List Cap := [.clipboardWrite, .io]
 
@@ -134,7 +135,7 @@ def voucher? (c : Chat) : Option String :=
   | _ => none
 
 /-- The member of the selected group whose key is `hex`. -/
-def memberByHex (m : Model) (hex : String) : Option CryptWalker.GroupChat.Member.Key :=
+def memberByHex (m : Model) (hex : String) : Option CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member.Key :=
   (m.current.bind (·.group)).bind fun g => g.readers.keys.find? (Display.hex · == hex)
 
 end Model

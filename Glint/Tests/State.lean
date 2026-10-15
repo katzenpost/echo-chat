@@ -15,7 +15,8 @@ namespace Glint.Tests.StateTests
 
 open Glint Glint.Tests
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.GroupChat.Member
+open CryptWalker.Protocols.GroupComm.Common
+open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 def bob : Key := ByteArray.mk #[2]
 def carol : Key := ByteArray.mk #[3]

@@ -13,7 +13,8 @@ namespace Glint.Tests.CommandTests
 
 open Glint Glint.Tests Glint.Command
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.GroupChat.Member
+open CryptWalker.Protocols.GroupComm.Common
+open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 def asks (a : Asked) (expected : String) : Bool := (a.msg.map (·.describe)) == some expected
 
