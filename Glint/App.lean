@@ -27,6 +27,7 @@ glint, not the sender, decides what each part of the window says:
 namespace Glint.App
 
 open Paw
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 open CryptWalker.GroupChat.Member
 
 abbrev caps : List Cap := [.clipboardWrite, .io]
@@ -139,7 +140,7 @@ def memberByHex (m : Model) (hex : String) : Option CryptWalker.GroupChat.Member
 end Model
 
 /-- What the core is asked, and glint's note on it; the message goes to the core on a task. -/
-def perform {o : Origin} (post : Glint.Msg → IO Unit) (a : Command.Asked) :
+def perform {o : Origin} (post : GroupChatKatzenqt1.Msg → IO Unit) (a : Command.Asked) :
     UpdateM Model Msg caps o Unit := do
   modify fun (m, cs) => ({ m with note := a.note, want := a.want.orElse fun _ => m.want }, cs)
   if let some msg := a.msg then emit (.task (do post msg; pure .posted) (by decide))
@@ -160,7 +161,7 @@ def needsGroup : DialogKind → Bool
   | .newGroup | .join => false
   | _ => true
 
-def update (post : Glint.Msg → IO Unit) : (o : Origin) → Msg → UpdateM Model Msg caps o Unit
+def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg → UpdateM Model Msg caps o Unit
   | _, .state s => modify fun (m, cs) => (m.take s, cs)
   | _, .logs lines => modify fun (m, cs) => ({ m with logs := lines }, cs)
   | _, .select chat => modify fun (m, cs) =>
@@ -418,7 +419,7 @@ def view (m : Model) : Node Msg :=
   Ui.col ([panes] ++ (if m.showLog then [rule, logPane m] else []) ++
     [rule, statusBar m] ++ (m.dialog.toList.map (dialogView m))) 0
 
-def app (post : Glint.Msg → IO Unit) (init : Model) (start : List (Cmd Msg caps .other) := []) :
+def app (post : GroupChatKatzenqt1.Msg → IO Unit) (init : Model) (start : List (Cmd Msg caps .other) := []) :
     App caps :=
   { Model := Model, Msg := Msg, init, update := update post, view, start }
 

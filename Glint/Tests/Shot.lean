@@ -13,6 +13,8 @@ The window drawn offscreen with the bundled fonts, for a person to look at. -/
 namespace Glint.Tests.Shot
 
 open Glint Glint.Tests Paw
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
+open GroupChatClient.GroupChatKatzenqt1.Tests
 
 def write {caps : List Cap} {app : Paw.App caps} (rt : Runtime app) (path : System.FilePath) : IO Unit := do
   let scene := match rt.present with | .request (.present s) => s | _ => Scene.empty
@@ -41,7 +43,7 @@ def shots (dir : System.FilePath) : IO Unit := do
 Alice's state, with her last message still on its way. -/
 def conversation : IO (Option Chat) := do
   let world ← IO.mkRef ({} : Sim.World)
-  let net : Net := { cores := #["alice", "bob", "carol"].map fun me => { state := { me } } }
+  let net : Net := { cores := #["alice", "bob", "carol"].map fun me => { present := presentation, state := { me } } }
   let say (who : Nat) (text : String) : NetM Bool := do
     feed who (.send "friends" text)
     runUntil world fun n => [0, 1, 2].all (says n · "friends" text)
@@ -94,6 +96,6 @@ def fixture (dir : System.FilePath) : IO Unit := do
   let bob := (c.names.pairs.find? (·.2 == "bob")).map (·.1) |>.getD .empty
   let c := { c with log := [AppTests.line 0 "~alice added ~bob", AppTests.line 1 "hello alice" bob] }
   let s : State := { me := "alice", chats := [c, AppTests.chatWith "second" [AppTests.line 0 "a notice"]] }
-  IO.FS.writeBinFile (dir / "state.cbor") (CryptWalker.GroupChat.Member.Persist.save s)
+  IO.FS.writeBinFile (dir / "state.cbor") (GroupChatClient.GroupChatKatzenqt1.Persist.save s)
 
 end Glint.Tests.Shot

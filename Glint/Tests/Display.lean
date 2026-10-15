@@ -3,9 +3,9 @@ SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 SPDX-License-Identifier: AGPL-3.0-only
 -/
 
-import Glint.Tests.Net
+import GroupChatClient.GroupChatKatzenqt1.Tests.Net
 import Glint.Tests.Util
-import Glint.Display
+import Glint.Presentation
 
 /-! # What reaches the screen
 
@@ -14,6 +14,8 @@ A hostile corpus through `name` and `body`, and names that could be taken for an
 namespace Glint.Tests.DisplayTests
 
 open Glint Glint.Tests Paw Paw.Text
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
+open GroupChatClient.GroupChatKatzenqt1.Tests
 open CryptWalker.GroupChat.Member
 
 def corpus : List String :=
@@ -48,7 +50,7 @@ def corpusTests : TestM Unit := do
 
 def threeMembers : IO (Option Chat) := do
   let world ← IO.mkRef ({} : Sim.World)
-  let net : Net := { cores := #["alice", "bob", "carol"].map fun me => { state := { me } } }
+  let net : Net := { cores := #["alice", "bob", "carol"].map fun me => { present := presentation, state := { me } } }
   let (ok, net) ← (do
     feed 0 (.create "g")
     for who in [1, 2] do

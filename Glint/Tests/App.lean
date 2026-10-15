@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -/
 
 import Glint.App
-import Glint.Shell
+import GroupChatClient.GroupChatKatzenqt1.Shell
 import Glint.Tests.Display
 
 /-! # The window
@@ -16,9 +16,10 @@ inbox. -/
 namespace Glint.Tests.AppTests
 
 open Glint Glint.Tests Paw
+open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 open CryptWalker.GroupChat.Member
 
-abbrev Sent := IO.Ref (Array Glint.Msg)
+abbrev Sent := IO.Ref (Array GroupChatKatzenqt1.Msg)
 
 def mkApp (sent : Sent) (me : String := "alice") : Paw.App App.caps :=
   App.app (fun m => sent.modify (·.push m)) { state := { me }, network := "test" }
