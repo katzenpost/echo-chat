@@ -6,6 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import Paw.Linux
 import Glint.Tests.App
 import Glint.Tests.Files
+import Glint.Tests.Voice
 
 /-! # Pictures of the window
 
@@ -59,6 +60,16 @@ def shots (dir : System.FilePath) : IO Unit := do
   write r.rt (dir / "view.png")
   -- The pictures live as long as the model holding them, which must outlive the drawing.
   discard <| AppTests.click r "accept"
+  VoiceTests.setup
+  let voice := { c with log := [AppTests.line 0 "listen to this" bob,
+    { VoiceTests.voiceLine 5 "attachments/g/0-5-ab.opus" with sender := bob }] }
+  let r ← AppTests.state measured { me := "alice", chats := [voice] }
+  let r ← AppTests.click r "play:5"
+  let r ← VoiceTests.press r "talk"
+  let r ← AppTests.other r .poll
+  write r.rt (dir / "recording.png")
+  let r ← VoiceTests.release r "talk"
+  write r.rt (dir / "voice.png")
 
 /-- Alice, Bob and Carol in a group over the simulated Pigeonhole, after a short conversation:
 Alice's state, with her last message still on its way. -/
@@ -102,7 +113,7 @@ def readme (path : System.FilePath) : IO Unit := do
     AppTests.line 1 "added ~dana: they now read everything said in this group",
     AppTests.line 2 "added ~eli: they now read everything said in this group"]
   let book : Chat := { name := "book club", joining := some (.awaiting "" .empty .empty .empty) }
-  let app := App.app (fun _ => pure ()) { state := { me := "alice" }, network := "daemon @katzenpost" }
+  let app := App.app (fun _ => pure ()) AppTests.fakeAudio { state := { me := "alice" }, network := "daemon @katzenpost" }
   let rt := (Paw.Runtime.start app (Rect.ofXYWH 0 0 (px 1000) (px 640)) 0 Linux.measure (motion := false) (theme := Theme.dark)).1
   let logs := #["18:20:29.973 NOTI glint: started as alice", "18:21:02.114 INFO glint/net: friends: read box 41: 212 bytes",
     "18:21:15.611 INFO glint/driver: replica epoch 488", "18:21:40.020 INFO glint/net: friends: wrote job 7 at box 12"]
