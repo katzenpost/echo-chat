@@ -16,7 +16,8 @@ namespace Glint.Display
 
 open Paw Paw.Text
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.GroupChat.Member
+open CryptWalker.Protocols.GroupComm.Common
+open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 /-- Characters of a name shown. -/
 def maxName : Nat := 30
