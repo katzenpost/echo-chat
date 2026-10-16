@@ -49,6 +49,13 @@ def tests : TestM Unit := do
   check "leave needs the group's name typed" (silent (leave (some "g") "h") &&
     (leave (some "g") "h").note == "to leave g and delete it here, type its name")
   check "leave with its name leaves" (asks (leave (some "g") " g ") "g: leave")
+  check "rename renames the group" (asks (rename s (some "g") " friends ") "g: rename to friends")
+  check "and selects it by its new name" ((rename s (some "g") "friends").want == some "friends")
+  check "rename needs a new name" (silent (rename s (some "g") " ") && silent (rename s (some "g") "g") &&
+    (rename s (some "g") "g").note == "type a new name for g")
+  check "rename to a name taken is refused"
+    (silent (rename { s with chats := s.chats ++ [{ name := "h" }] } (some "g") "h"))
+  check "rename needs a group" (silent (rename s none "h"))
   check "remove needs a member of the group" (silent (remove s (some "g") bob) &&
     (remove s (some "g") bob).note == "that member is no longer in this group")
   check "remove needs a group" (silent (remove s none bob))

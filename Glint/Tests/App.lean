@@ -249,7 +249,7 @@ def dialogs : TestM Unit := do
   let count := fun () => do return (← sent.get).size
   -- Escape posts nothing, whatever was typed.
   for (button, kind) in [("invite", App.DialogKind.invite), ("leave", .leave), ("join-group", .join),
-      ("new-group", .newGroup), ("clear", .clear), ("remove", .remove)] do
+      ("new-group", .newGroup), ("clear", .clear), ("remove", .remove), ("rename", .rename)] do
     let r ← click r button
     check s!"{button} opens its dialog" (r.rt.model.dialog.any (·.kind == kind)) fun _ => s!"{repr (r.rt.model.dialog.map (·.kind))} at {repr (at_ r button)} note={r.rt.model.note}"
     let r ← if (r.rt.tree.findKey? "dialog-field").isSome then do
@@ -296,6 +296,23 @@ def dialogs : TestM Unit := do
   let r ← input r (.release (at_ r "accept") .primary) 10
   check "a click on a button that has just appeared is not the user's choice"
     ((← count ()) == 4 && r.rt.model.dialog.isSome)
+
+def renames : TestM Unit := do
+  let sent ← IO.mkRef #[]
+  let s : State := { me := "alice", chats := [chatWith "g" [line 0 "one"], chatWith "h" []] }
+  let r ← state (begin sent) s
+  let r ← click r "rename"
+  check "Rename opens with the group's name" (r.rt.model.dialog.any fun d => d.kind == .rename && d.field == "g")
+  let r ← other r (.field "h")
+  let r ← click r "accept"
+  check "Rename to a name taken posts nothing, and says why" ((← sent.get).isEmpty &&
+    String.intercalate "" (textsOf r "dialog-note") == "you already have a group called h")
+  let r ← other r (.field "friends")
+  let r ← click r "accept"
+  check "Rename posts the new name" ((← last sent) == some "g: rename to friends")
+  let r ← state r { s with chats := [{ chatWith "g" [line 0 "one"] with name := "friends" }, chatWith "h" []] }
+  check "the group stays selected by its new name" (r.rt.model.selected == some "friends")
+  check "and its lines stay read" ((textsOf r "group:friends") == ["friends"]) fun _ => toString (textsOf r "group:friends")
 
 def copy : TestM Unit := do
   let sent ← IO.mkRef #[]
@@ -399,6 +416,7 @@ def tests : TestM Unit := do
   origin
   sending
   dialogs
+  renames
   copy
   rendering
 
