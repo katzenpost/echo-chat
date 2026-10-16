@@ -32,7 +32,8 @@ rev = "4f53056ab925925c362d2ab8a357dfe030946851"
 
 [[require]]
 name = "rustic-audio-lean"
-path = "../rustic-audio-lean"
+git = "https://github.com/katzenpost/rustic-audio-lean.git"
+rev = "39162c45687a26a4db8bda368ef4adfa33c4f0a8"
 
 # Last, so that its pin wins over the older ones its dependents carry.
 [[require]]
