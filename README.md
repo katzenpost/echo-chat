@@ -17,7 +17,7 @@ that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a g
 ## Building
 
 glint is Lean, with small Rust libraries underneath it: Paw's, for the window, one for the
-daemon's unix socket, and [rustic-audio-lean](https://github.com/katzenpost/rustic-audio-lean),
+daemon's unix socket, and [rustic_audio_lean](https://github.com/katzenpost/rustic_audio_lean),
 for voice notes. You need:
 
 - **Lean**, through [elan](https://github.com/leanprover/elan), which installs the toolchain
