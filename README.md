@@ -16,14 +16,16 @@ that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a g
 
 ## Building
 
-glint is Lean, with two small Rust libraries underneath it: Paw's, for the window, and one for
-the daemon's unix socket. You need:
+glint is Lean, with small Rust libraries underneath it: Paw's, for the window, one for the
+daemon's unix socket, and [rustic-audio-lean](https://github.com/katzenpost/rustic-audio-lean),
+for voice notes. You need:
 
 - **Lean**, through [elan](https://github.com/leanprover/elan), which installs the toolchain
   named in `lean-toolchain` by itself.
 - **Rust**, through [rustup](https://rustup.rs). Lake runs `cargo` itself while building, so
   `cargo` only has to be on the `PATH`.
-- On Debian or Ubuntu, `libxkbcommon-x11-0` to open a window on X11.
+- On Debian or Ubuntu, `libxkbcommon-x11-0` to open a window on X11, and `libasound2-dev` and
+  `pkg-config` for sound.
 - **git**, and about 8 GB of disk.
 
 Then:
@@ -96,6 +98,8 @@ said or read here. The log is hidden until F2 shows it.
 | Leave | stop reading and writing the group and delete it here, once you type its name |
 | Attach… | choose a file and send it to the selected group |
 | View, Save… | beside a file received: see a picture large, or copy the file out |
+| Hold to talk | record a voice note while you hold it, to play, discard or send |
+| Play, Stop | beside a voice note: play it, or stop |
 
 The **Send** button names the group the message goes to, and how many lines it is.
 
@@ -109,9 +113,20 @@ line says how far it has gone. PNG and JPEG pictures are shown in the conversati
 320 × 240, and large with View; other files show their name and size. Received files are kept in
 `attachments/` in the state directory, and Save… copies one out.
 
+### Voice notes
+
+Hold **Hold to talk**, or Ctrl+Space, while you speak, and let go. The voice note waits above the
+message box, to Play, Discard, or Send to the group; nothing is sent until you click Send. A
+voice note is Ogg Opus, 48 kHz mono at 12 kb/s, about 1.5 kB a second, recorded and played by
+Rustic Audio through ALSA's default devices. It is sent as katzenqt sends one: a file of type
+`audio/opus` named by its SHA-256, so that its name tells nothing of when it was recorded.
+Voice notes received show Play and Stop. If glint cannot reach the sound system, Hold to talk is
+greyed out and says why.
+
 | Key | |
 |---|---|
 | Ctrl+Enter | send |
+| Ctrl+Space, held | record a voice note |
 | Ctrl+PageUp, Ctrl+PageDown | the previous or next group |
 | F2 | show or hide the log |
 | F10 | blank the window at once, and bring it back |
@@ -142,7 +157,8 @@ everything another member sends is untrusted.
   button takes no click in the half second after it appears. A member to remove is chosen from
   the list, by key. Copy writes the clipboard only for a click on it. A file is read only once
   you choose it and click Send, and one received is written outside the state directory only where
-  you save it, never over a file already there. glint asks for the
+  you save it, never over a file already there. The microphone records only while you hold Hold
+  to talk or Ctrl+Space, and what it recorded leaves only when you click Send. glint asks for the
   clipboard and for running tasks, and for nothing else: no links, no notifications. The window's
   title is always "glint".
 - **Pictures.** A picture received is decoded by Paw, which takes only PNG and JPEG and refuses one

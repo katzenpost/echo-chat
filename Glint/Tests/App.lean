@@ -25,9 +25,45 @@ abbrev Sent := IO.Ref (Array GroupChatKatzenqt1.Msg)
 /-- Where the tests keep files: the state directory, and a home with files to send. -/
 def testDir : System.FilePath := ".lake/glint-test"
 
+/-- The fake sound system: what it was asked, and what it does. -/
+structure Sound where
+  log : Array String := #[]
+  recording : Bool := false
+  playing : Option String := none
+  /-- How long the next clip is, in milliseconds. -/
+  clipMs : Nat := 2000
+  clips : Nat := 0
+  /-- Recording fails, and why. -/
+  fail : Option String := none
+  deriving Inhabited
+
+initialize sound : IO.Ref Sound ← IO.mkRef {}
+
+def drafts : System.FilePath := testDir / "state" / "audio" / "drafts"
+
+def fakeAudio : Voice.Audio where
+  start := do
+    if let some e := (← sound.get).fail then throw (IO.userError e)
+    sound.modify fun s => { s with recording := true, log := s.log.push "start" }
+  stop := do
+    let s ← sound.get
+    sound.set { s with recording := false, clips := s.clips + 1, log := s.log.push "stop" }
+    IO.FS.createDirAll drafts
+    let path := drafts / s!"voice-note-{s.clips}.opus"
+    let bytes := s!"OggS clip {s.clips}".toUTF8
+    IO.FS.writeBinFile path bytes
+    return { path := path.toString, durationMs := s.clipMs, size := bytes.size }
+  cancel := sound.modify fun s => { s with recording := false, log := s.log.push "cancel" }
+  play p := do
+    unless ← System.FilePath.pathExists p do throw (IO.userError s!"{p} does not exist")
+    sound.modify fun s => { s with playing := some p, log := s.log.push s!"play {p}" }
+  stopPlay := sound.modify fun s => { s with playing := none }
+  playing := return (← sound.get).playing.isSome
+  error := pure none
+
 def mkApp (sent : Sent) (me : String := "alice") : Paw.App App.caps :=
   let home := (testDir / "home").toString
-  App.app (fun m => sent.modify (·.push m))
+  App.app (fun m => sent.modify (·.push m)) fakeAudio
     { state := { me }, network := "test", stateDir := testDir / "state", home, downloads := home }
 
 /-- A runtime, the outputs of its last step, and the time. -/
@@ -322,7 +358,7 @@ def theme : TestM Unit := do
   let sent ← IO.mkRef #[]
   let r := begin sent
   check "glint is dark by default" (background r.rt == some Theme.dark.background)
-  let light := App.app (fun m => sent.modify (·.push m)) { state := { me := "alice" }, dark := false }
+  let light := App.app (fun m => sent.modify (·.push m)) fakeAudio { state := { me := "alice" }, dark := false }
   let rt := (Paw.Runtime.start light (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Env.mock.measure).1
   check "and light when asked" (background rt == some Theme.light.background)
 

@@ -149,6 +149,17 @@ for m in $(others $FIRST); do
     if wait_for "$WORK/$m.layout" '^picture:' 30; then ok "$m shows it"; else fail "$m shows it"; fi
 done
 
+# A voice note, attached as katzenqt sends one: everyone else shows it with Play.
+click $FIRST attach
+answer $FIRST "$PWD/tests/e2e/tone.opus"
+for m in $(others $FIRST); do
+  expect "$m" "~$FIRST:\[file tone.opus, " "$m receives $FIRST's voice note" "$SECONDS_NET" &&
+    if wait_for "$WORK/$m.layout" '^play:' 30; then ok "$m shows it with Play"; else fail "$m shows it with Play"; fi
+  key=$(awk '$1 ~ /^play:/ { print $1; exit }' "$WORK/$m.layout")
+  [ -n "$key" ] && click "$m" "$key"
+  if kill -0 "$(eval echo "\$PID_$m")" 2>/dev/null; then ok "$m plays it"; else fail "$m plays it"; fi
+done
+
 xdotool windowfocus --sync "$(eval echo "\$W_$FIRST")"
 xdotool key ctrl+q
 sleep 2

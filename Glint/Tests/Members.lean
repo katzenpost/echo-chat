@@ -37,7 +37,7 @@ def serialized (b : Backend) : IO Backend := do
     maxPlaintext := one b.maxPlaintext }
 
 def memberApp (sh : Shell) (me : String) : Paw.App App.caps :=
-  App.app sh.post { state := { me }, network := "sim" }
+  App.app sh.post AppTests.fakeAudio { state := { me }, network := "sim" }
 
 structure Member where
   me : String

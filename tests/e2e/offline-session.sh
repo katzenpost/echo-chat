@@ -23,6 +23,23 @@ click() {
 expect alice 'selected=g ' "the saved state's first group is selected"
 expect alice 'lines=\[—:~alice added ~bob, ~bob:hello alice\]' "its lines are shown"
 expect_idle alice "an idle glint does not wake"
+set -- $(center alice talk)
+xdotool mousemove --window "$W" "$1" "$2" mousedown 1
+expect alice 'voice=recording ' "holding Hold to talk records"
+sleep 1
+xdotool mouseup 1
+expect alice 'voice=draft:[1-9]' "letting go keeps a voice note to send" 20
+wait_for "$WORK/alice.layout" '^draft-play ' || fail "the voice note can be played"
+click draft-play
+click draft-discard
+expect alice 'voice=idle ' "Discard throws it away"
+if ls "$WORK/state/audio/drafts/"*.opus >/dev/null 2>&1; then fail "and its file"; else ok "and its file"; fi
+xdotool keydown ctrl+space
+expect alice 'voice=recording ' "holding Ctrl+Space records"
+sleep 1
+xdotool keyup space keyup ctrl
+expect alice 'voice=draft:[1-9]' "letting go keeps a voice note" 20
+click draft-discard
 click group:second
 expect alice 'selected=second ' "a click selects another group"
 xdotool key ctrl+q

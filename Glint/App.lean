@@ -7,6 +7,7 @@ import Paw
 import Glint.Command
 import Glint.Display
 import Glint.Disk
+import Glint.Voice
 
 /-! # The window
 
@@ -26,7 +27,9 @@ glint, not the sender, decides what each part of the window says:
   copying, reading or writing a file) happens only for the user's own click. The window's title is
   always "glint".
 - A file is read only once the user chose it and clicked Send, and one received is written out only
-  where they chose to save it; a picture received is shown from glint's own copy. -/
+  where they chose to save it; a picture received is shown from glint's own copy.
+- The microphone records only while the user holds the Hold to talk button or Ctrl+Space, and what
+  it recorded is sent only once they click Send. -/
 
 namespace Glint.App
 
@@ -68,6 +71,20 @@ structure Dialog where
   line : Option Nat := none
   deriving BEq
 
+/-- A voice note being recorded, or recorded and not yet sent, for a group. -/
+inductive Recording
+  | idle
+  /-- Asked to start; `released` once let go before it had. -/
+  | starting (chat : String) (released : Bool)
+  | recording (chat : String) (since : Nat)
+  | stopping (chat : String)
+  | draft (chat : String) (clip : RusticAudio.Clip)
+  deriving BEq, Inhabited
+
+def Recording.chat? : Recording → Option String
+  | .idle => none
+  | .starting c _ | .recording c _ | .stopping c | .draft c _ => some c
+
 /-- A picture a line carries, as far as it has been read. -/
 inductive Picture
   | loading
@@ -108,6 +125,23 @@ inductive Msg
   | view (line : Nat)
   | saved (r : Except String String)
   | picture (file : String) (r : Except Disk.Unshown Image)
+  /-- The Hold to talk button or Ctrl+Space, pressed and let go. -/
+  | holdStart
+  | holdEnd
+  /-- Recording began, at this time. -/
+  | started (r : Except String Nat)
+  | captured (r : Except String RusticAudio.Clip)
+  | playDraft
+  | discardDraft
+  | sendDraft
+  | voiceRead (chat : String) (r : Except String (String × ByteArray))
+  /-- Play the voice note a line carries. -/
+  | playLine (line : Nat)
+  | playStarted (path : String) (r : Except String Unit)
+  | stopPlay
+  | poll
+  | polled (now : Nat) (playing : Bool) (error : Option String)
+  | audioDone (r : Except String Unit)
 
 structure Model where
   state : State
@@ -141,6 +175,13 @@ structure Model where
   lastDir : Option String := none
   /-- The pictures lines carry, by their file. -/
   pictures : List (String × Picture) := []
+  voice : Recording := .idle
+  /-- The voice note playing, by its path. -/
+  playing : Option String := none
+  /-- The time of the last poll of the sound system, in milliseconds. -/
+  clock : Nat := 0
+  /-- Why there is no sound, when there is none. -/
+  soundOff : Option String := none
   deriving Inhabited
 
 instance : BEq Model where
@@ -148,7 +189,8 @@ instance : BEq Model where
     a.logs == b.logs && a.showLog == b.showLog && a.blank == b.blank && a.draft == b.draft &&
     a.note == b.note && a.want == b.want && a.dialog == b.dialog && a.outer == b.outer &&
     a.inner == b.inner && a.network == b.network && a.dark == b.dark && a.zone == b.zone &&
-    a.lastDir == b.lastDir && a.pictures == b.pictures
+    a.lastDir == b.lastDir && a.pictures == b.pictures && a.voice == b.voice &&
+    a.playing == b.playing && a.clock == b.clock && a.soundOff == b.soundOff
 
 namespace Model
 
@@ -182,6 +224,8 @@ def line? (m : Model) (id : Nat) : Option Line := m.current.bind (·.log.find? (
 def pictureOf (m : Model) (a : Attachment) : Option Picture := m.pictures.lookup a.file
 
 def isPicture (a : Attachment) : Bool := Files.isImage a.filetype a.name
+
+def isVoice (a : Attachment) : Bool := Voice.isVoice a.filetype
 
 /-- The member of the selected group whose key is `hex`. -/
 def memberByHex (m : Model) (hex : String) : Option CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member.Key :=
@@ -228,20 +272,53 @@ def wantPictures {o : Origin} : UpdateM Model Msg caps o Unit := do
     let path := m.stateDir / a.file
     emit (.task (return .picture a.file (← Disk.picture path)) (by decide))
 
+def attempt {α : Type} (io : IO α) : IO (Except String α) := do
+  try return .ok (← io) catch e => return .error (toString e)
+
+def note {o : Origin} (s : String) : UpdateM Model Msg caps o Unit :=
+  modify fun (m, cs) => ({ m with note := s }, cs)
+
+def stopRecording {o : Origin} (audio : Voice.Audio) (chat : String) : UpdateM Model Msg caps o Unit := do
+  modify fun (m, cs) => ({ m with voice := .stopping chat, note := "" }, cs)
+  emit (.task (return .captured (← attempt audio.stop)) (by decide))
+
+/-- Stop recording without keeping it, as when another group is selected. -/
+def cancelRecording {o : Origin} (audio : Voice.Audio) : UpdateM Model Msg caps o Unit := do
+  match (← get).1.voice with
+  | .starting c _ => modify fun (m, cs) => ({ m with voice := .starting c true }, cs)
+  | .recording .. =>
+    modify fun (m, cs) => ({ m with voice := .idle, note := "" }, cs)
+    emit (.task (return .audioDone (← attempt audio.cancel)) (by decide))
+  | _ => pure ()
+
+def play {o : Origin} (audio : Voice.Audio) (path : String) : UpdateM Model Msg caps o Unit :=
+  emit (.task (return .playStarted path (← attempt (audio.play path))) (by decide))
+
+/-- Whether the sound system is to be polled: while recording or playing. -/
+def busy (m : Model) : Bool :=
+  m.playing.isSome || match m.voice with | .recording .. => true | _ => false
+
+def sendFile {o : Origin} (post : GroupChatKatzenqt1.Msg → IO Unit) (chat name : String) (bytes : ByteArray)
+    (note : String) : UpdateM Model Msg caps o Unit :=
+  perform post { msg := some (.sendFile chat name bytes), note }
+
 /-- The path in the folder shown of the entry `name`. -/
 def inDir (d : Dialog) (name : String) : String := (System.FilePath.mk d.dir / name).toString
 
-def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg → UpdateM Model Msg caps o Unit
+def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
+    (o : Origin) → Msg → UpdateM Model Msg caps o Unit
   | _, .state s => do
     modify fun (m, cs) => (m.take s, cs)
     wantPictures
   | _, .logs lines => modify fun (m, cs) => ({ m with logs := lines }, cs)
   | _, .select chat => do
+    if (← get).1.selected != some chat then cancelRecording audio
     modify fun (m, cs) =>
       if m.state.chats.any (·.name == chat) then ((({ m with selected := some chat } : Model)).markSeen, cs)
       else (m, cs)
     wantPictures
   | _, .next forward => do
+    cancelRecording audio
     modify fun (m, cs) =>
       let names := m.state.chats.map (·.name)
       let n := names.length
@@ -303,7 +380,7 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg �
     match r with
     | .ok (name, bytes) =>
       modify fun (m, cs) => ({ m with dialog := none, lastDir := some d.dir }, cs)
-      perform post { msg := some (.sendFile chat name bytes), note := s!"sending {Files.safeName name}" }
+      sendFile post chat name bytes s!"sending {Files.safeName name}"
     | .error e => modify fun (m, cs) => ({ m with dialog := some { d with note := Display.logLine e } }, cs)
   | _, .saved r => modify fun (m, cs) =>
     match r with
@@ -362,6 +439,98 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) : (o : Origin) → Msg �
     (if outer then { m with outer := n } else { m with inner := n }, cs)
   | _, .quit => emit .quit
   | _, .posted => pure ()
+  -- A press is not designated, as a click is; what is recorded leaves only with a click on Send.
+  | _, .holdStart => do
+    let m := (← get).1
+    if m.dialog.isSome then return
+    match m.voice with
+    | .idle =>
+      let some c := m.current | return
+      if c.group.isNone then return
+      if let some why := m.soundOff then note why; return
+      modify fun (m, cs) => ({ m with voice := .starting c.name false, note := "" }, cs)
+      emit (.task (return .started (← attempt (do audio.start; IO.monoMsNow))) (by decide))
+    | .draft .. => note "send or discard the voice note first"
+    | _ => pure ()
+  | _, .holdEnd => do
+    match (← get).1.voice with
+    | .starting c _ => modify fun (m, cs) => ({ m with voice := .starting c true }, cs)
+    | .recording c _ => stopRecording audio c
+    | _ => pure ()
+  | _, .started r => do
+    match (← get).1.voice, r with
+    | .starting c false, .ok t =>
+      -- Recording stops whatever was playing.
+      modify fun (m, cs) => ({ m with voice := .recording c t, clock := t, playing := none }, cs)
+      emit (.after 250 .poll)
+    | .starting _ true, .ok _ =>
+      modify fun (m, cs) => ({ m with voice := .idle, note := "hold to record a voice note" }, cs)
+      emit (.task (return .audioDone (← attempt audio.cancel)) (by decide))
+    | .starting .., .error e => modify fun (m, cs) => ({ m with voice := .idle, note := Display.logLine e }, cs)
+    | _, .ok _ => emit (.task (return .audioDone (← attempt audio.cancel)) (by decide))
+    | _, .error _ => pure ()
+  | _, .captured r => do
+    let .stopping c := (← get).1.voice | return
+    match r with
+    | .ok clip =>
+      if clip.durationMs < Voice.shortest then
+        modify fun (m, cs) => ({ m with voice := .idle, note := "hold to record a voice note" }, cs)
+        emit (.task (return .audioDone (← attempt (IO.FS.removeFile clip.path))) (by decide))
+      else modify fun (m, cs) => ({ m with voice := .draft c clip }, cs)
+    | .error e => modify fun (m, cs) => ({ m with voice := .idle, note := Display.logLine e }, cs)
+  | .user _, .playDraft => do
+    let .draft _ clip := (← get).1.voice | return
+    play audio clip.path
+  | .other, .playDraft => pure ()
+  | _, .discardDraft => do
+    let m := (← get).1
+    let .draft _ clip := m.voice | return
+    modify fun (m, cs) => ({ m with voice := .idle }, cs)
+    if m.playing == some clip.path then
+      modify fun (m, cs) => ({ m with playing := none }, cs)
+      emit (.task (return .audioDone (← attempt audio.stopPlay)) (by decide))
+    emit (.task (return .audioDone (← attempt (IO.FS.removeFile clip.path))) (by decide))
+  | .user _, .sendDraft => do
+    let m := (← get).1
+    let .draft c clip := m.voice | return
+    modify fun (m, cs) => ({ m with voice := .idle }, cs)
+    if m.playing == some clip.path then
+      modify fun (m, cs) => ({ m with playing := none }, cs)
+      emit (.task (return .audioDone (← attempt audio.stopPlay)) (by decide))
+    emit (.task (return .voiceRead c (← attempt do
+      let bytes ← IO.FS.readBinFile clip.path
+      IO.FS.removeFile clip.path
+      return (Voice.nameOf bytes, bytes))) (by decide))
+  | .other, .sendDraft => pure ()
+  | _, .voiceRead chat r => match r with
+    | .ok (name, bytes) => sendFile post chat name bytes "sending a voice note"
+    | .error e => note (Display.logLine e)
+  | .user _, .playLine id => do
+    let m := (← get).1
+    let some a := (m.line? id).bind (·.attachment) | return
+    if Model.isVoice a then play audio (m.stateDir / a.file).toString
+  | .other, .playLine _ => pure ()
+  | _, .playStarted path r => match r with
+    | .ok () => do
+      let was := busy (← get).1
+      modify fun (m, cs) => ({ m with playing := some path }, cs)
+      if !was then emit (.after 250 .poll)
+    | .error e => note (Display.logLine e)
+  | _, .stopPlay => do
+    modify fun (m, cs) => ({ m with playing := none }, cs)
+    emit (.task (return .audioDone (← attempt audio.stopPlay)) (by decide))
+  | _, .poll => do
+    if busy (← get).1 then
+      emit (.task (return .polled (← IO.monoMsNow) (← audio.playing) (← audio.error)) (by decide))
+  | _, .polled now playing error => do
+    modify fun (m, cs) => ({ m with clock := now, playing := if playing then m.playing else none }, cs)
+    if let some e := error then note (Display.logLine e)
+    if let .recording c since := (← get).1.voice then
+      if now ≥ since + Voice.longest then stopRecording audio c
+    if busy (← get).1 then emit (.after 250 .poll)
+  | _, .audioDone r => match r with
+    | .ok () => pure ()
+    | .error e => note (Display.logLine e)
 
 /-! ## The view
 
@@ -387,6 +556,8 @@ structure FileRow where
   name : SafeText
   detail : String
   picture : Option (Image × Nat × Nat) := none
+  /-- A voice note's, and whether it is playing. -/
+  voice : Option Bool := none
   deriving BEq
 
 /-- A message as drawn: its lines or its file, and our mark, so that one that did not change is
@@ -406,6 +577,10 @@ def fileView (f : FileRow) : List (Node Msg) :=
   let picture := f.picture.toList.map fun (img, w, h) =>
     Ui.row [pictureView img w h f.name s!"picture:{f.line}", Ui.spacer]
   let viewButton := if f.picture.isSome then [Ui.flatButton "View" (.view f.line) s!"view:{f.line}"] else []
+  let viewButton := match f.voice with
+    | some true => [Ui.flatButton "Stop" .stopPlay s!"stop:{f.line}"]
+    | some false => [Ui.flatButton "Play" (.playLine f.line) s!"play:{f.line}"]
+    | none => viewButton
   picture ++ [Ui.row ([Ui.text f.name, Ui.text (SafeText.trusted f.detail) (tone := .muted) (size := .caption)] ++
     viewButton ++ [Ui.flatButton "Save…" (.saveAs f.line) s!"save:{f.line}", Ui.spacer]) (px 6)]
 
@@ -451,7 +626,10 @@ def fileRow (m : Model) (c : Chat) (l : Line) (a : Attachment) : FileRow :=
     | some .loading => (none, none)
     | none => (none, if Model.isPicture a then some "not received yet" else none)
   let detail := " · ".intercalate ([size] ++ (sending c l).toList ++ note.toList)
-  { line := l.id, name := Display.text a.name, detail, picture }
+  if Model.isVoice a then
+    let playing := m.playing == some (m.stateDir / a.file).toString
+    { line := l.id, name := SafeText.trusted "Voice note", detail, voice := some playing }
+  else { line := l.id, name := Display.text a.name, detail, picture }
 
 /-- A conversation as runs: each run of one sender's messages under one header, glint's notices
 alone, and a date between runs of different days. -/
@@ -510,6 +688,24 @@ def sendCaption (c : Chat) (draft : String) : String :=
   let to := (Display.name c.name).text
   if n > 1 then s!"Send {n} lines to {to}" else s!"Send to {to}"
 
+/-- The voice note being recorded in the group, or recorded and not yet sent. -/
+def voiceBar (m : Model) (c : Chat) : Option (Node Msg) :=
+  let bar (parts : List (Node Msg)) := some (Ui.pad (px 12) (Ui.row parts (px 6)))
+  match m.voice with
+  | .recording chat since =>
+    if chat != c.name then none else
+    bar [Ui.caption (SafeText.trusted s!"Recording a voice note, {Voice.seconds (m.clock - since)}: let go to stop") "voice-status"]
+  | .starting chat _ | .stopping chat =>
+    if chat != c.name then none else bar [Ui.caption (SafeText.trusted "Recording a voice note…") "voice-status"]
+  | .draft chat clip =>
+    if chat != c.name then none else
+    let playing := m.playing == some clip.path
+    bar [Ui.text (SafeText.trusted s!"Voice note, {Voice.seconds clip.durationMs}") (key := "voice-status"),
+      if playing then Ui.flatButton "Stop" .stopPlay "draft-stop" else Ui.flatButton "Play" .playDraft "draft-play",
+      Ui.spacer, Ui.button "Discard" .discardDraft "draft-discard",
+      Ui.mainButton "Send voice note" .sendDraft "draft-send"]
+  | .idle => none
+
 def conversationPane (m : Model) (c : Chat) : Node Msg :=
   let info := match c.group with
     | some g => s!"{g.readers.size + 1} members · epoch {g.epoch}"
@@ -532,13 +728,19 @@ def conversationPane (m : Model) (c : Chat) : Node Msg :=
         (maxLines := 3) (tone := .muted),
       Ui.row [Ui.text (Display.text code) (maxLines := 6) (key := "voucher-code"), Ui.spacer,
         Ui.mainButton "Copy" .copyVoucher "copy-voucher"] (px 12)] (px 6))
+  let talk := Ui.enabled (joined && m.soundOff.isNone && (m.voice == .idle || m.voice.chat? == some c.name))
+    (Node.leaf (Voice.holdButton (SafeText.trusted "Hold to talk") .holdStart .holdEnd
+      (match m.voice with | .recording .. | .starting .. => true | _ => false)) "talk")
+  let talk := match m.soundOff with
+    | some why => Ui.tooltip why talk
+    | none => talk
   let composer := Ui.pad (px 12) <| Ui.height (px 72) <| Ui.row [
     Ui.keystroke [({ key := .enter, ctrl := true }, .send)]
       (Ui.textArea m.draft .draft { rows := 3, placeholder := SafeText.trusted "a message" } "draft"),
     Node.container (box { alignV := .bottom })
-      [Ui.row [Ui.enabled joined (Ui.button "Attach…" (.ask .attach) "attach"),
+      [Ui.row [talk, Ui.enabled joined (Ui.button "Attach…" (.ask .attach) "attach"),
         Ui.enabled joined (Ui.mainButton (sendCaption c m.draft) .send "send")] (px 6)]] (px 12)
-  Ui.col ([header, rule] ++ voucher ++ [conversation m c, rule, composer]) 0
+  Ui.col ([header, rule] ++ voucher ++ [conversation m c, rule, Ui.col (voiceBar m c).toList 0 (key := "voice-bar"), composer]) 0
 
 def membersPane (m : Model) (c : Chat) : Node Msg :=
   let ms := Display.members m.state.me c
@@ -638,7 +840,7 @@ def bindings : List (Widgets.KeyCombo × Msg) :=
    ({ key := .pageUp, ctrl := true }, .next false)]
 
 def view (m : Model) : Node Msg :=
-  Ui.keystroke bindings <| Ui.themed (if m.dark then Theme.dark else Theme.light) <|
+  Voice.keys bindings .holdStart .holdEnd <| Ui.themed (if m.dark then Theme.dark else Theme.light) <|
   if m.blank then Ui.pad (px 24) (Ui.label "glint · F10 to return" "blank") else
   let (middle, right) := match m.current with
     | some c => (conversationPane m c, membersPane m c)
@@ -648,8 +850,8 @@ def view (m : Model) : Node Msg :=
   Ui.col ([panes] ++ (if m.showLog then [rule, logPane m] else []) ++
     [rule, statusBar m] ++ (m.dialog.toList.map (dialogView m))) 0
 
-def app (post : GroupChatKatzenqt1.Msg → IO Unit) (init : Model) (start : List (Cmd Msg caps .other) := []) :
-    App caps :=
-  { Model := Model, Msg := Msg, init, update := update post, view, start }
+def app (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) (init : Model)
+    (start : List (Cmd Msg caps .other) := []) : App caps :=
+  { Model := Model, Msg := Msg, init := { init with soundOff := audio.off }, update := update post audio, view, start }
 
 end Glint.App

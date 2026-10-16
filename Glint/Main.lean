@@ -96,7 +96,13 @@ def describe (m : App.Model) : String :=
       s!"{who}{App.markOf c l}:{(l.text.replace "\n" "|")}"
     let code := (App.Model.voucher? c).getD ""
     s!"{c.name}[joined={c.group.isSome} code={code} members={(c.group.map (·.readers.size)).getD 0} lines={lines}]"
-  s!"selected={m.selected.getD ""} dialog={(m.dialog.map (repr ·.kind)).getD (repr "")} draft={m.draft.replace "\n" "|"} chats={chats}"
+  let voice := match m.voice with
+    | .idle => "idle"
+    | .starting .. => "starting"
+    | .recording .. => "recording"
+    | .stopping _ => "stopping"
+    | .draft _ clip => s!"draft:{clip.durationMs}"
+  s!"selected={m.selected.getD ""} dialog={(m.dialog.map (repr ·.kind)).getD (repr "")} draft={m.draft.replace "\n" "|"} voice={voice} playing={m.playing.isSome} chats={chats}"
 
 def main (args : List String) : IO UInt32 := do
   try run args
@@ -137,9 +143,12 @@ where
   let downloads := System.FilePath.mk home / "Downloads"
   let downloads := if ← downloads.isDir then downloads.toString else home
   let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads }
+  let audio ← Voice.Audio.open (dir / "audio" / "drafts")
+  if let some why := audio.off then log.warning why
   if cfg.offline then
     let init := App.Model.take { base with network := "offline" } state
-    Paw.Linux.run (App.app (fun _ => pure ()) init) title 1000 700 describe
+    try Paw.Linux.run (App.app (fun _ => pure ()) audio init) title 1000 700 describe
+    finally audio.cancel
     IO.Process.exit 0
   IO.println s!"connecting to the client daemon at {cfg.daemon}"
   let client ← connect cfg.daemon
@@ -158,8 +167,9 @@ where
   let network := s!"daemon {cfg.daemon}"
   let init := App.Model.take { base with state := core.state, network, logs } core.state
   try
-    Paw.Linux.run (App.app post init [.producer producer (by decide)]) title 1000 700 describe
+    Paw.Linux.run (App.app post audio init [.producer producer (by decide)]) title 1000 700 describe
   finally
+    audio.cancel
     showLogs.set fun _ => pure ()
     stop.set true
     discard <| inbox.close
