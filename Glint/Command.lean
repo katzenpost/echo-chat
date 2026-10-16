@@ -65,6 +65,16 @@ def clear (chat : Option String) : Asked :=
   | none => { note := "select a group first" }
   | some c => { msg := some (.clear c) }
 
+/-- Call `chat` `to` here, and select it by its new name. -/
+def rename (s : State) (chat : Option String) (to : String) : Asked :=
+  match chat with
+  | none => { note := "select a group first" }
+  | some c =>
+    let to := clean to
+    if to.isEmpty || to == c then { note := s!"type a new name for {c}" }
+    else if taken s to then { note := s!"you already have a group called {to}" }
+    else { msg := some (.rename c to), want := some to, note := s!"renamed {c} to {to}" }
+
 /-- Leave `chat` only when `typed` is its name. -/
 def leave (chat : Option String) (typed : String) : Asked :=
   match chat with

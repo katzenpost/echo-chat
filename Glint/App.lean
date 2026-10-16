@@ -47,6 +47,7 @@ inductive DialogKind
   | remove
   | leave
   | clear
+  | rename
   /-- Choose a file to send. -/
   | attach
   /-- Choose where to save a line's file. -/
@@ -84,6 +85,16 @@ inductive Recording
 def Recording.chat? : Recording → Option String
   | .idle => none
   | .starting c _ | .recording c _ | .stopping c | .draft c _ => some c
+
+/-- The same, for the group `old` renamed `new`. -/
+def Recording.rename (r : Recording) (old new : String) : Recording :=
+  let n (c : String) := if c == old then new else c
+  match r with
+  | .idle => .idle
+  | .starting c released => .starting (n c) released
+  | .recording c since => .recording (n c) since
+  | .stopping c => .stopping (n c)
+  | .draft c clip => .draft (n c) clip
 
 /-- A picture a line carries, as far as it has been read. -/
 inductive Picture
@@ -213,6 +224,11 @@ def take (m : Model) (s : State) : Model :=
   markSeen { m with state := s, version := m.version + 1, selected,
                     want := m.want.filter (!has ·) }
 
+/-- Keep what is kept of the group `old` for it as `new`. -/
+def rename (m : Model) (old new : String) : Model :=
+  { m with seen := m.seen.map fun (c, n) => (if c == old then new else c, n),
+           voice := m.voice.rename old new }
+
 def voucher? (c : Chat) : Option String :=
   match c.joining with
   | some (.awaiting code ..) => some code
@@ -247,6 +263,7 @@ def confirmed (m : Model) (d : Dialog) : Command.Asked :=
   | .invite => Command.invite d.chat d.field
   | .leave => Command.leave d.chat d.field
   | .clear => Command.clear d.chat
+  | .rename => Command.rename m.state d.chat d.field
   | .attach | .save | .view => {}
   | .remove => match d.pick.bind m.memberByHex with
     | some k => Command.remove m.state d.chat k
@@ -340,7 +357,8 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
       modify fun (m, cs) => ({ m with note := "select a group first" }, cs)
       return
     let dir := m.lastDir.getD m.home
-    modify fun (m, cs) => ({ m with dialog := some { kind, modal := Modal.open d, chat := m.selected, dir := dir } }, cs)
+    let field := if kind == .rename then m.selected.getD "" else ""
+    modify fun (m, cs) => ({ m with dialog := some { kind, modal := Modal.open d, chat := m.selected, dir, field } }, cs)
     if kind == .attach then browse dir
   | .other, .ask _ => pure ()
   | .user d, .saveAs id => do
@@ -425,6 +443,7 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
       modify fun (m, cs) => ({ m with dialog := some { d with note := a.note } }, cs)
     else
       modify fun (m, cs) => ({ m with dialog := none }, cs)
+      if let some (.rename old new) := a.msg then modify fun (m, cs) => (m.rename old new, cs)
       perform post a
   | _, .dismiss => modify fun (m, cs) => ({ m with dialog := none }, cs)
   | .user d, .copyVoucher => do
@@ -719,6 +738,7 @@ def conversationPane (m : Model) (c : Chat) : Node Msg :=
     Ui.enabled joined (Ui.flatButton "Remove" (.ask .remove) "remove"),
     Ui.enabled joined (Ui.flatButton "Scan" .scan "scan"),
     Ui.width (px 12) Ui.spacer,
+    Ui.flatButton "Rename" (.ask .rename) "rename",
     Ui.flatButton "Clear" (.ask .clear) "clear",
     Ui.destructiveButton "Leave" (.ask .leave) "leave"] (px 6)
   let voucher := (Model.voucher? c).toList.map fun code =>
@@ -812,6 +832,9 @@ def dialogView (m : Model) (d : Dialog) : Node Msg :=
   | .leave => body s!"Leave {group}"
       [Ui.paragraph s!"Leave {group} and delete it here? This cannot be undone. Type its name to confirm.",
         field "the group's name"] "Leave" .destructive
+  | .rename => body s!"Rename {group}"
+      [Ui.paragraph "Its name here. The other members each know it by a name of their own.",
+        field "its new name"] "Rename" .main
   | .clear => body s!"Clear {group}"
       [Ui.paragraph s!"Delete this conversation's lines here? The other members keep theirs."] "Clear" .destructive
   | .attach => body s!"Send a file to {group}"

@@ -93,6 +93,7 @@ said or read here. The log is hidden until F2 shows it.
 | Join a group | join someone else's group: glint shows a voucher code to give one of its members |
 | Invite | let the person whose voucher code you were given into the selected group |
 | Remove member | stop reading a member and delete what they sent; they can still read the group |
+| Rename | call the selected group something else here; the other members keep their own names for it |
 | Clear | delete the selected conversation's lines here |
 | Scan | look again for messages a member's stream skipped |
 | Leave | stop reading and writing the group and delete it here, once you type its name |
