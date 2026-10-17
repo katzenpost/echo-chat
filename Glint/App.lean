@@ -35,8 +35,8 @@ namespace Glint.App
 
 open Paw
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.Protocols.GroupComm.Common
-open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
+open Cryptlib.Protocols.GroupComm.Common
+open Cryptlib.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 abbrev caps : List Cap := [.clipboardWrite, .io]
 
@@ -244,7 +244,7 @@ def isPicture (a : Attachment) : Bool := Files.isImage a.filetype a.name
 def isVoice (a : Attachment) : Bool := Voice.isVoice a.filetype
 
 /-- The member of the selected group whose key is `hex`. -/
-def memberByHex (m : Model) (hex : String) : Option CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member.Key :=
+def memberByHex (m : Model) (hex : String) : Option Cryptlib.Protocols.GroupComm.GroupChatKatzenqt1.Member.Key :=
   (m.current.bind (·.group)).bind fun g => g.readers.keys.find? (Display.hex · == hex)
 
 end Model

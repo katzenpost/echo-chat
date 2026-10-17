@@ -12,8 +12,8 @@ to select once it appears, and glint's note on it. -/
 
 namespace Glint.Command
 
-open CryptWalker.Protocols.GroupComm.Common
-open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
+open Cryptlib.Protocols.GroupComm.Common
+open Cryptlib.Protocols.GroupComm.GroupChatKatzenqt1.Member
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 
 structure Asked where

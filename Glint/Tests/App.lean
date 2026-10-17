@@ -17,8 +17,8 @@ namespace Glint.Tests.AppTests
 
 open Glint Glint.Tests Paw
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
-open CryptWalker.Protocols.GroupComm.Common
-open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
+open Cryptlib.Protocols.GroupComm.Common
+open Cryptlib.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 abbrev Sent := IO.Ref (Array GroupChatKatzenqt1.Msg)
 
