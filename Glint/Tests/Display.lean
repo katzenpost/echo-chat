@@ -16,8 +16,8 @@ namespace Glint.Tests.DisplayTests
 open Glint Glint.Tests Paw Paw.Text
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 open GroupChatClient.GroupChatKatzenqt1.Tests
-open CryptWalker.Protocols.GroupComm.Common
-open CryptWalker.Protocols.GroupComm.GroupChatKatzenqt1.Member
+open Cryptlib.Protocols.GroupComm.Common
+open Cryptlib.Protocols.GroupComm.GroupChatKatzenqt1.Member
 
 def corpus : List String :=
   ["‮evil‬", "a​b⁠c﻿", "e" ++ String.ofList (List.replicate 40 '́'),

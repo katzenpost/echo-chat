@@ -4,8 +4,8 @@ A desktop group chat over the [Katzenpost](https://katzenpost.network) mixnet, w
 that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a glint member, a
 [jam](https://github.com/katzenpost/jam) member and a katzenqt member can be in one group.
 
-- The group chat protocol is CryptWalker's member state machine
-  (`CryptWalker/GroupChat/Member`), with its proofs. glint drives the member as katzenqt's
+- The group chat protocol is Cryptlib's member state machine
+  (`Cryptlib/Protocols/GroupComm/GroupChatKatzenqt1/Member`), with its proofs. glint drives the member as katzenqt's
   adapter does and does the IO.
 - Boxes are read and written through the client daemon, `kpclientd`, with the Lean
   [thin client](https://github.com/katzenpost/thin_client).
@@ -35,7 +35,7 @@ Then:
     make build
 
 `make build` runs `lake exe cache get`, which fetches the dependencies and Mathlib's compiled
-files (several GB, which CryptWalker needs), then `lake build glint`. The program is
+files (several GB, which Cryptlib needs), then `lake build glint`. The program is
 `.lake/build/bin/glint`.
 
 ## Running

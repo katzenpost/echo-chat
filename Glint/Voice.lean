@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 import Paw
 import RusticAudio
-import CryptWalker.Hash.Sha2
+import Cryptlib.Primitives.Hash.Sha2
 import Glint.Display
 
 /-! # Voice notes
@@ -68,7 +68,7 @@ def longest : Nat := 10 * 60 * 1000
 
 /-- The name a voice note is sent under. -/
 def nameOf (bytes : ByteArray) : String :=
-  Display.hex (CryptWalker.Hash.Sha2.Sha256.hash bytes).val ++ ".opus"
+  Display.hex (Cryptlib.Primitives.Hash.Sha2.Sha256.hash bytes).val ++ ".opus"
 
 def isVoice (filetype : String) : Bool := filetype == "audio/opus"
 
