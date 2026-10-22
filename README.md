@@ -59,14 +59,28 @@ katzenpost/glint` checks that a downloaded binary was built by this repository's
 
 ## Running
 
-glint talks to the mixnet through the Katzenpost client daemon, `kpclientd`. Build it from
-[katzenpost](https://github.com/katzenpost/katzenpost) and run it with the client configuration of
-the mixnet you want:
+glint does not reach the mixnet itself. It talks to the Katzenpost client daemon, `kpclientd`,
+which does the networking and the cryptography, so start the daemon first, with a client
+configuration that says which mixnet to join.
 
-    cd katzenpost/cmd/kpclientd && go build && ./kpclientd -c client.toml
+Build `kpclientd` from [katzenpost](https://github.com/katzenpost/katzenpost) with Go, of at least
+the version its `go.mod` names:
 
-Its `[Listen]` section says where glint finds it; `@katzenpost` is the default. Several glint
-instances, jam and katzenqt can share one daemon. Then:
+    git clone https://github.com/katzenpost/katzenpost
+    cd katzenpost/cmd/kpclientd && go build
+
+This repository carries the configuration of the namenlos mixnet, in `config/client.toml`. Run the
+daemon with it and leave it running:
+
+    ./kpclientd -c /path/to/glint/config/client.toml
+
+It logs to the terminal. Once it has fetched the mixnet's PKI document from the voting authorities
+and connected to one of the gateways the file pins, glint can use it. namenlos's gateways change
+from time to time; if the daemon cannot connect to any of them, pull this repository for the
+latest `config/client.toml`.
+
+The file's `[Listen]` section says where glint finds the daemon: `@katzenpost`, glint's default.
+Several glint instances, jam and katzenqt can share one daemon. Then start glint:
 
     .lake/build/bin/glint --name alice
 
