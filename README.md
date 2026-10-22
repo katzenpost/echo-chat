@@ -38,6 +38,25 @@ Then:
 files (several GB, which Cryptlib needs), then `lake build glint`. The program is
 `.lake/build/bin/glint`.
 
+### Verifying a release
+
+The binaries on the [releases](https://github.com/katzenpost/glint/releases) page are
+reproducible: the same tag built anywhere with the toolchains it pins gives the same bytes. Each
+release is built twice, on two runner images, and published only if both agree. To check one
+yourself, with what Building lists and Rust 1.99.0 (`rustup toolchain install 1.99.0`):
+
+    git clone https://github.com/katzenpost/glint
+    cd glint
+    git checkout v0.1.0
+    FROM_SOURCE=1 make release
+    curl -fsSL https://github.com/katzenpost/glint/releases/download/v0.1.0/SHA256SUMS | diff - dist/SHA256SUMS
+
+No output from `diff` means your build and the release match. `FROM_SOURCE=1` skips
+`lake exe cache get` and builds Mathlib too, so nothing you run was compiled by someone else; it
+takes a few hours. Without it, `make release` is quicker and trusts
+Mathlib's downloaded files. Either way, `gh attestation verify glint-v0.1.0-x86_64-linux --repo
+katzenpost/glint` checks that a downloaded binary was built by this repository's release workflow.
+
 ## Running
 
 glint talks to the mixnet through the Katzenpost client daemon, `kpclientd`. Build it from

@@ -1,0 +1,10 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# pkg-config for release builds. x11-dl and tiny-xlib ask it where the X11 libraries are and build
+# the answer into the binary, so the binary would depend on which -dev packages the builder has
+# and where the distribution keeps them. Refused, they load the libraries by soname.
+for arg; do
+	[ "$arg" = --variable=libdir ] && exit 1
+done
+exec pkg-config "$@"

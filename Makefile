@@ -9,10 +9,14 @@ export RUSTUP_TOOLCHAIN := 1.99.0
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
-.PHONY: build test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci
+.PHONY: build release test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci
 
 build:
 	lake exe cache get && lake build glint
+
+# The binary and its SHA256SUMS in dist/, the same bytes on every machine.
+release:
+	sh scripts/release-build.sh dist
 
 # In one process, with no daemon or window.
 test:
