@@ -19,7 +19,7 @@ jobs:
       # As the Makefile sets it: Paw's toolchain, for both Rust libraries.
       RUSTUP_TOOLCHAIN: 1.99.0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Configure podman socket
         run: systemctl --user start podman.socket
       - name: install display tools
@@ -34,7 +34,7 @@ jobs:
           ./elan-init -y --default-toolchain none --no-modify-path
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - run: rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .lake
