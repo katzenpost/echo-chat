@@ -16,6 +16,7 @@ export PATH="$HOME/.cargo/bin:$HOME/.elan/bin:$PATH"
 # CARGO_HOME; name them the same on every machine.
 cargo_home=${CARGO_HOME:-$HOME/.cargo}
 export RUSTFLAGS="--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$PWD=/glint"
+export PKG_CONFIG="$PWD/scripts/pkg-config-no-libdir"
 export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
 export LC_ALL=C TZ=UTC
 
