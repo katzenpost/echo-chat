@@ -4,16 +4,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 -/
 
 import Paw.Linux
-import Glint.Tests.App
+import Sigil.Tests.App
 
 /-! # Files
 
 Choosing a file to send, pictures shown in the conversation and large, and saving a file
 received, with files on disk under `AppTests.testDir`. -/
 
-namespace Glint.Tests.FilesTests
+namespace Sigil.Tests.FilesTests
 
-open Glint Glint.Tests Glint.Tests.AppTests Paw
+open Sigil Sigil.Tests Sigil.Tests.AppTests Paw
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 
 def home : System.FilePath := testDir / "home"
@@ -119,4 +119,4 @@ def tests : TestM Unit := do
   attaching
   pictures
 
-end Glint.Tests.FilesTests
+end Sigil.Tests.FilesTests

@@ -1,19 +1,19 @@
 # SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# Helpers for driving glint in a real window. Sourced with WORK set to a scratch directory.
+# Helpers for driving sigil in a real window. Sourced with WORK set to a scratch directory.
 
-GLINT=$PWD/.lake/build/bin/glint
+SIGIL=$PWD/.lake/build/bin/sigil
 FAILED=0
 
 ok() { echo "ok   $1"; }
 fail() { echo "FAIL $1"; FAILED=1; }
 
-# Starts glint as member $1 with the test hooks; the rest are glint's arguments.
-start_glint() {
+# Starts sigil as member $1 with the test hooks; the rest are sigil's arguments.
+start_sigil() {
   who=$1; shift
   : > "$WORK/$who.log"
-  env PAW_TEST_LOG="$WORK/$who.log" PAW_TEST_LAYOUT="$WORK/$who.layout" "$GLINT" "$@" \
+  env PAW_TEST_LOG="$WORK/$who.log" PAW_TEST_LAYOUT="$WORK/$who.layout" "$SIGIL" "$@" \
     > "$WORK/$who.out" 2>&1 &
   eval "PID_$who=\$!"
 }
