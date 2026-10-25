@@ -61,21 +61,21 @@ def fakeAudio : Voice.Audio where
   playing := return (← sound.get).playing.isSome
   error := pure none
 
-def mkApp (sent : Sent) (me : String := "alice") : Paw.App App.caps :=
+def mkApp (sent : Sent) (phone : Bool := false) (me : String := "alice") : Paw.App App.caps :=
   let home := (testDir / "home").toString
   App.app (fun m => sent.modify (·.push m)) fakeAudio
-    { state := { me }, network := "test", stateDir := testDir / "state", home, downloads := home }
+    { state := { me }, network := "test", stateDir := testDir / "state", home, downloads := home, phone }
 
 /-- A runtime, the outputs of its last step, and the time. -/
-structure Run (sent : Sent) where
-  rt : Runtime (mkApp sent)
-  outs : List (Output (mkApp sent).Msg) := []
+structure Run (sent : Sent) (phone : Bool := false) where
+  rt : Runtime (mkApp sent phone)
+  outs : List (Output (mkApp sent phone).Msg) := []
   now : Nat := 0
 
-variable {sent : Sent}
+variable {sent : Sent} {phone : Bool}
 
 /-- Run the tasks among the outputs, as the platform would, and hand their results back. -/
-partial def settle (r : Run sent) : IO (Run sent) := do
+partial def settle (r : Run sent phone) : IO (Run sent phone) := do
   let tasks := r.outs.filterMap fun | .task io => some io | _ => none
   if tasks.isEmpty then return r
   let mut r := r
@@ -87,36 +87,40 @@ partial def settle (r : Run sent) : IO (Run sent) := do
     outs := outs ++ o
   settle { r with outs }
 
-def begin (sent : Sent) : Run sent :=
-  { rt := (Paw.Runtime.start (mkApp sent) (Rect.ofXYWH 0 0 (px 1000) (px 700)) 0 Env.mock.measure).1 }
+/-- A window of 1000 by 700, or a phone's, 411 wide and 860 high. -/
+def window (phone : Bool) : Rect :=
+  if phone then Rect.ofXYWH 0 0 (px 411) (px 860) else Rect.ofXYWH 0 0 (px 1000) (px 700)
 
-def input (r : Run sent) (k : InputKind) (dt : Nat := 50) : IO (Run sent) :=
+def begin (sent : Sent) (phone : Bool := false) : Run sent phone :=
+  { rt := (Paw.Runtime.start (mkApp sent phone) (window phone) 0 Env.mock.measure).1 }
+
+def input (r : Run sent phone) (k : InputKind) (dt : Nat := 50) : IO (Run sent phone) :=
   let now := r.now + dt
   let (rt, outs) := r.rt.step (.input { kind := k, time := now }) now
   settle { rt, outs, now }
 
-def at_ (r : Run sent) (k : String) : Point :=
+def at_ (r : Run sent phone) (k : String) : Point :=
   match r.rt.tree.findKey? k with
   | some n => ⟨(n.viewport.x0 + n.viewport.x1) / 2, (n.viewport.y0 + n.viewport.y1) / 2⟩
   | none => ⟨-1, -1⟩
 
 /-- A click on the widget keyed `k`, after waiting long enough for it to be designated. -/
-def click (r : Run sent) (k : String) : IO (Run sent) := do
+def click (r : Run sent phone) (k : String) : IO (Run sent phone) := do
   let p := at_ r k
   let r ← input r (.press p .primary) 600
   let r' ← input r (.release p .primary)
   return { r' with outs := r.outs ++ r'.outs }
 
-def key (r : Run sent) (k : Paw.Key) (m : Mods := {}) : IO (Run sent) := input r (.key k m true) 600
+def key (r : Run sent phone) (k : Paw.Key) (m : Mods := {}) : IO (Run sent phone) := input r (.key k m true) 600
 
-def typeText (r : Run sent) (s : String) : IO (Run sent) := input r (.text s) 600
+def typeText (r : Run sent phone) (s : String) : IO (Run sent phone) := input r (.text s) 600
 
-def state (r : Run sent) (s : State) : IO (Run sent) :=
+def state (r : Run sent phone) (s : State) : IO (Run sent phone) :=
   let now := r.now + 50
   let (rt, outs) := r.rt.results [App.Msg.state s] now
   settle { rt, outs, now }
 
-def other (r : Run sent) (m : App.Msg) : IO (Run sent) :=
+def other (r : Run sent phone) (m : App.Msg) : IO (Run sent phone) :=
   let now := r.now + 50
   let (rt, outs) := r.rt.results [m] now
   settle { rt, outs, now }
@@ -127,7 +131,7 @@ def clipboard {M : Type} (outs : List (Output M)) : List String :=
   outs.filterMap fun | .request (.setClipboard t) => some t.text | _ => none
 
 /-- The texts drawn by the widget keyed `k` and everything in it. -/
-def textsOf (r : Run sent) (k : String) : List String :=
+def textsOf (r : Run sent phone) (k : String) : List String :=
   match r.rt.tree.findKey? k with
   | some n => (n.render r.rt.env).items.filterMap fun
       | (_, .text _ t _) => some t.text
@@ -137,7 +141,7 @@ def textsOf (r : Run sent) (k : String) : List String :=
 partial def kinds {Msg : Type} (n : Node Msg) : List String := n.kind :: n.children.flatMap kinds
 
 /-- The texts the widget keyed `k` draws, with their styles, in frank_chat's dark theme. -/
-def stylesOf (r : Run sent) (k : String) : List (String × TextStyle) :=
+def stylesOf (r : Run sent phone) (k : String) : List (String × TextStyle) :=
   match r.rt.tree.findKey? k with
   | some n => (n.render { r.rt.env with theme := Theme.dark }).items.filterMap fun
       | (_, .text _ t st) => some (t.text, st)
@@ -146,7 +150,7 @@ def stylesOf (r : Run sent) (k : String) : List (String × TextStyle) :=
 
 /-- Whether what the widget keyed `k` draws is centered in the conversation, within a few
 pixels. -/
-def centered (r : Run sent) (k : String) : Bool :=
+def centered (r : Run sent phone) (k : String) : Bool :=
   let pane := ((r.rt.tree.findKey? "conversation").map (·.viewport)).getD default
   let mid := (pane.x0 + pane.x1 - Widgets.gutter) / 2
   match r.rt.tree.findKey? k with

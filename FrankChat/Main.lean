@@ -148,7 +148,7 @@ where
   let home := (← IO.getEnv "HOME").getD dir.toString
   let downloads := System.FilePath.mk home / "Downloads"
   let downloads := if ← downloads.isDir then downloads.toString else home
-  let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads }
+  let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads, phone := Paw.Linux.onAndroid }
   let audio ← Voice.Audio.open (dir / "audio" / "drafts")
   if let some why := audio.off then log.warning why
   if cfg.offline then

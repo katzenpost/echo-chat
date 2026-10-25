@@ -153,6 +153,10 @@ inductive Msg
   | poll
   | polled (now : Nat) (playing : Bool) (error : Option String)
   | audioDone (r : Except String Unit)
+  /-- Back to the groups, on a phone, where one pane shows at a time. -/
+  | back
+  /-- The menu of a group's actions, on a phone, shown or hidden. -/
+  | menu (shown : Bool)
 
 structure Model where
   state : State
@@ -193,6 +197,9 @@ structure Model where
   clock : Nat := 0
   /-- Why there is no sound, when there is none. -/
   soundOff : Option String := none
+  /-- A phone's narrow window: one pane at a time, the groups or a conversation. -/
+  phone : Bool := false
+  menu : Bool := false
   deriving Inhabited
 
 instance : BEq Model where
@@ -201,7 +208,8 @@ instance : BEq Model where
     a.note == b.note && a.want == b.want && a.dialog == b.dialog && a.outer == b.outer &&
     a.inner == b.inner && a.network == b.network && a.dark == b.dark && a.zone == b.zone &&
     a.lastDir == b.lastDir && a.pictures == b.pictures && a.voice == b.voice &&
-    a.playing == b.playing && a.clock == b.clock && a.soundOff == b.soundOff
+    a.playing == b.playing && a.clock == b.clock && a.soundOff == b.soundOff &&
+    a.phone == b.phone && a.menu == b.menu
 
 namespace Model
 
@@ -214,13 +222,13 @@ def markSeen (m : Model) : Model :=
   | none => m
 
 /-- Take a new state: keep the selection while its group exists, and select a group asked for
-once it appears. -/
+once it appears. With none, the first group is selected, except on a phone, which shows the groups. -/
 def take (m : Model) (s : State) : Model :=
   let has (n : String) := s.chats.any (·.name == n)
   let selected := match m.want with
     | some w => if has w then some w else m.selected
     | none => m.selected
-  let selected := (selected.filter has).orElse fun _ => s.chats.head?.map (·.name)
+  let selected := (selected.filter has).orElse fun _ => if m.phone then none else s.chats.head?.map (·.name)
   markSeen { m with state := s, version := m.version + 1, selected,
                     want := m.want.filter (!has ·) }
 
@@ -328,6 +336,10 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
     modify fun (m, cs) => (m.take s, cs)
     wantPictures
   | _, .logs lines => modify fun (m, cs) => ({ m with logs := lines }, cs)
+  | _, .back => do
+    cancelRecording audio
+    modify fun (m, cs) => ({ m with selected := none, menu := false }, cs)
+  | _, .menu b => modify fun (m, cs) => ({ m with menu := b }, cs)
   | _, .select chat => do
     if (← get).1.selected != some chat then cancelRecording audio
     modify fun (m, cs) =>
@@ -350,7 +362,9 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
     let a := Command.send m.selected m.draft
     if a.msg.isSome then modify fun (m, cs) => ({ m with draft := "" }, cs)
     perform post a
-  | _, .scan => do perform post (Command.scan (← get).1.selected)
+  | _, .scan => do
+    modify fun (m, cs) => ({ m with menu := false }, cs)
+    perform post (Command.scan (← get).1.selected)
   | .user d, .ask kind => do
     let m := (← get).1
     if needsGroup kind && m.current.isNone then
@@ -358,7 +372,8 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
       return
     let dir := m.lastDir.getD m.home
     let field := if kind == .rename then m.selected.getD "" else ""
-    modify fun (m, cs) => ({ m with dialog := some { kind, modal := Modal.open d, chat := m.selected, dir, field } }, cs)
+    let dialog : Dialog := { kind, modal := Modal.open d, chat := m.selected, dir, field }
+    modify fun (m, cs) => ({ m with menu := false, dialog := some dialog }, cs)
     if kind == .attach then browse dir
   | .other, .ask _ => pure ()
   | .user d, .saveAs id => do
@@ -730,17 +745,21 @@ def conversationPane (m : Model) (c : Chat) : Node Msg :=
     | some g => s!"{g.readers.size + 1} members · epoch {g.epoch}"
     | none => if c.joining.isSome then "waiting to be added" else "starting"
   let joined := c.group.isSome
-  let header := Ui.pad (px 12) <| Ui.row [
-    Ui.col [Ui.text (Display.name c.name).toText (key := "title") (overflow := .ellipsis) (bold := true)
-        (size := .heading), Ui.caption (SafeText.trusted info) "info"] (px 2),
-    Ui.spacer,
+  let title := Ui.col [Ui.text (Display.name c.name).toText (key := "title") (overflow := .ellipsis) (bold := true)
+      (size := .heading), Ui.caption (SafeText.trusted info) "info"] (px 2)
+  let groupActions := [
     Ui.enabled joined (Ui.flatButton "Invite" (.ask .invite) "invite"),
     Ui.enabled joined (Ui.flatButton "Remove" (.ask .remove) "remove"),
-    Ui.enabled joined (Ui.flatButton "Scan" .scan "scan"),
-    Ui.width (px 12) Ui.spacer,
+    Ui.enabled joined (Ui.flatButton "Scan" .scan "scan")]
+  let actions := [
     Ui.flatButton "Rename" (.ask .rename) "rename",
     Ui.flatButton "Clear" (.ask .clear) "clear",
-    Ui.destructiveButton "Leave" (.ask .leave) "leave"] (px 6)
+    Ui.destructiveButton "Leave" (.ask .leave) "leave"]
+  let header := Ui.pad (px 12) <| if m.phone then
+      Ui.row [Ui.flatButton "Back" .back "back", title, Ui.spacer,
+        Ui.popup m.menu (Ui.button "More" (.menu true) "more") (Ui.col (groupActions ++ actions) (px 4))
+          (.menu false) "menu"] (px 6)
+    else Ui.row ([title, Ui.spacer] ++ groupActions ++ [Ui.width (px 12) Ui.spacer] ++ actions) (px 6)
   let voucher := (Model.voucher? c).toList.map fun code =>
     Ui.pad (px 12) <| Ui.panel (Ui.col [
       Ui.heading "Your voucher code",
@@ -754,12 +773,14 @@ def conversationPane (m : Model) (c : Chat) : Node Msg :=
   let talk := match m.soundOff with
     | some why => Ui.tooltip why talk
     | none => talk
-  let composer := Ui.pad (px 12) <| Ui.height (px 72) <| Ui.row [
-    Ui.keystroke [({ key := .enter, ctrl := true }, .send)]
-      (Ui.textArea m.draft .draft { rows := 3, placeholder := SafeText.trusted "a message" } "draft"),
-    Node.container (box { alignV := .bottom })
-      [Ui.row [talk, Ui.enabled joined (Ui.button "Attach…" (.ask .attach) "attach"),
-        Ui.enabled joined (Ui.mainButton (sendCaption c m.draft) .send "send")] (px 6)]] (px 12)
+  let draft := Ui.keystroke [({ key := .enter, ctrl := true }, .send)]
+    (Ui.textArea m.draft .draft { rows := 3, placeholder := SafeText.trusted "a message" } "draft")
+  let buttons := [talk, Ui.enabled joined (Ui.button "Attach…" (.ask .attach) "attach")]
+  let composer := Ui.pad (px 12) <| if m.phone then
+      Ui.col [Ui.height (px 72) draft,
+        Ui.row (buttons ++ [Ui.spacer, Ui.enabled joined (Ui.mainButton "Send" .send "send")]) (px 6)] (px 6)
+    else Ui.height (px 72) <| Ui.row [draft, Node.container (box { alignV := .bottom })
+      [Ui.row (buttons ++ [Ui.enabled joined (Ui.mainButton (sendCaption c m.draft) .send "send")]) (px 6)]] (px 12)
   Ui.col ([header, rule] ++ voucher ++ [conversation m c, rule, Ui.col (voiceBar m c).toList 0 (key := "voice-bar"), composer]) 0
 
 def membersPane (m : Model) (c : Chat) : Node Msg :=
@@ -862,14 +883,23 @@ def bindings : List (Widgets.KeyCombo × Msg) :=
    ({ key := .f 2 }, .toggleLog), ({ key := .pageDown, ctrl := true }, .next true),
    ({ key := .pageUp, ctrl := true }, .next false)]
 
+/-- A phone's one pane: the conversation selected, or else the groups. -/
+def phonePane (m : Model) : Node Msg :=
+  match m.current with
+  | some c => conversationPane m c
+  | none => if m.state.chats.isEmpty then empty else Ui.surface (Ui.col [groupsPane m, Ui.filler] 0)
+
 def view (m : Model) : Node Msg :=
-  Voice.keys bindings .holdStart .holdEnd <| Ui.themed (if m.dark then Theme.dark else Theme.light) <|
+  -- On a phone, Escape is the back key.
+  let keys := if m.phone then bindings ++ [({ key := .escape }, .back)] else bindings
+  Voice.keys keys .holdStart .holdEnd <| Ui.themed (if m.dark then Theme.dark else Theme.light) <|
   if m.blank then Ui.pad (px 24) (Ui.label "frank_chat · F10 to return" "blank") else
   let (middle, right) := match m.current with
     | some c => (conversationPane m c, membersPane m c)
     | none => (empty, Ui.surface Ui.spacer)
-  let panes := Ui.split (groupsPane m) (Ui.split middle right m.inner (.ratio false) (key := "inner"))
-    m.outer (.ratio true) (key := "outer")
+  let panes := if m.phone then phonePane m else
+    Ui.split (groupsPane m) (Ui.split middle right m.inner (.ratio false) (key := "inner"))
+      m.outer (.ratio true) (key := "outer")
   Ui.col ([panes] ++ (if m.showLog then [rule, logPane m] else []) ++
     [rule, statusBar m] ++ (m.dialog.toList.map (dialogView m))) 0
 
