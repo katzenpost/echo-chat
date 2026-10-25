@@ -15,7 +15,7 @@ export PATH="$HOME/.cargo/bin:$HOME/.elan/bin:$PATH"
 # Panic messages carry the source path of every crate, and those live under the builder's
 # CARGO_HOME; name them the same on every machine.
 cargo_home=${CARGO_HOME:-$HOME/.cargo}
-export RUSTFLAGS="--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$PWD=/glint"
+export RUSTFLAGS="--remap-path-prefix=$cargo_home=/cargo --remap-path-prefix=$PWD=/frank_chat"
 export PKG_CONFIG="$PWD/scripts/pkg-config-no-libdir"
 export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
 export LC_ALL=C TZ=UTC
@@ -24,15 +24,15 @@ export LC_ALL=C TZ=UTC
 for p in paw rustic_audio_lean lean_unix_socket; do
 	rm -rf ".lake/packages/$p/rust/target"
 done
-rm -f .lake/build/bin/glint
+rm -f .lake/build/bin/frank_chat
 
 # FROM_SOURCE=1 builds Mathlib here too, instead of trusting its downloaded files.
 [ -n "${FROM_SOURCE:-}" ] || lake exe cache get
-lake build glint
+lake build frank_chat
 
 version="$(git describe --tags --always)"
 mkdir -p "$out"
-cp .lake/build/bin/glint "$out/glint-$version-x86_64-linux"
+cp .lake/build/bin/frank_chat "$out/frank_chat-$version-x86_64-linux"
 cd "$out"
-sha256sum "glint-$version-x86_64-linux" > SHA256SUMS
+sha256sum "frank_chat-$version-x86_64-linux" > SHA256SUMS
 cat SHA256SUMS

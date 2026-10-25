@@ -1,19 +1,19 @@
 # SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-# Helpers for driving glint in a real window. Sourced with WORK set to a scratch directory.
+# Helpers for driving frank_chat in a real window. Sourced with WORK set to a scratch directory.
 
-GLINT=$PWD/.lake/build/bin/glint
+FRANK_CHAT=$PWD/.lake/build/bin/frank_chat
 FAILED=0
 
 ok() { echo "ok   $1"; }
 fail() { echo "FAIL $1"; FAILED=1; }
 
-# Starts glint as member $1 with the test hooks; the rest are glint's arguments.
-start_glint() {
+# Starts frank_chat as member $1 with the test hooks; the rest are frank_chat's arguments.
+start_frank_chat() {
   who=$1; shift
   : > "$WORK/$who.log"
-  env PAW_TEST_LOG="$WORK/$who.log" PAW_TEST_LAYOUT="$WORK/$who.layout" "$GLINT" "$@" \
+  env PAW_TEST_LOG="$WORK/$who.log" PAW_TEST_LAYOUT="$WORK/$who.layout" "$FRANK_CHAT" "$@" \
     > "$WORK/$who.out" 2>&1 &
   eval "PID_$who=\$!"
 }
