@@ -25,15 +25,21 @@ def tests : TestM Unit := do
   let bob : Key := ByteArray.mk #[4, 5, 6]
   let g : Chat := { name := "g", group := some (Group.found (me ++ ByteArray.mk (List.replicate 133 0).toArray) []) }
   let s : State := { me := "alice", chats := [g] }
-  check "new group creates it" (asks (newGroup s " h ") "h: create")
-  check "and selects it once it appears" ((newGroup s "h").want == some "h")
-  check "a new group needs a name" (silent (newGroup s "  ") && !(newGroup s "").note.isEmpty)
+  check "new group creates it, as the name given" (asks (newGroup s " h " " Ali ") "h: create as Ali")
+  check "and selects it once it appears" ((newGroup s "h" "Ali").want == some "h")
+  check "a new group needs a name" (silent (newGroup s "  " "Ali") && !(newGroup s "" "Ali").note.isEmpty)
+  check "and a name for us in it"
+    (silent (newGroup s "h" " ") && (newGroup s "h" "").note == "say what the other members will call you")
+  check "of at most 30 characters" (silent (newGroup s "h" (String.ofList (List.replicate 31 'a'))) &&
+    !(silent (newGroup s "h" (String.ofList (List.replicate 30 'a')))))
   check "a name already taken is refused, and says why"
-    (silent (newGroup s "g") && (newGroup s "g").note == "you already have a group called g")
-  check "join joins under a name of its own" (asks (joinGroup s "h") "h: join")
-  check "and says a voucher code will appear" ((joinGroup s "h").note.startsWith "a voucher code will appear")
+    (silent (newGroup s "g" "Ali") && (newGroup s "g" "Ali").note == "you already have a group called g")
+  check "join joins under a name of its own, as the name given" (asks (joinGroup s "h" "Bo") "h: join as Bo")
+  check "and says a voucher code will appear" ((joinGroup s "h" "Bo").note.startsWith "a voucher code will appear")
+  check "join needs a name for us too" (silent (joinGroup s "h" "") &&
+    (joinGroup s "h" "").note == "say what the other members will call you")
   check "join under a name taken is refused"
-    (silent (joinGroup s "g") && (joinGroup s "g").note.startsWith "you already have a group called g: to join")
+    (silent (joinGroup s "g" "Bo") && (joinGroup s "g" "Bo").note.startsWith "you already have a group called g: to join")
   check "invite needs a group" (silent (invite none "code") && (invite none "code").note == "select a group first")
   check "invite needs a code" (silent (invite (some "g") " "))
   check "invite inducts with the code" (asks (invite (some "g") " QUJD ") "g: add a member" &&

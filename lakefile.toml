@@ -12,7 +12,7 @@ relaxedAutoImplicit = false
 [[require]]
 name = "paw"
 git = "https://github.com/katzenpost/paw.git"
-rev = "2f82d73237cb1f541899095cb12066cf553ce7c6"
+rev = "ae347c9b745a7ae8bf505f9b387b2733262efa57"
 
 [[require]]
 name = "Logger"
@@ -27,12 +27,12 @@ rev = "cbc2272c156bbe67cbc6b996677811baff3eb404"
 [[require]]
 name = "lean_unix_socket"
 git = "https://github.com/katzenpost/lean_unix_socket.git"
-rev = "4bbfd6bb9df6bc9ce0d31252afff86d48683c9f2"
+rev = "daf2480b1183b3007eaf9ecebb6de323d3785b75"
 
 [[require]]
 name = "group_chat_client"
 git = "https://github.com/katzenpost/group_chat_client.git"
-rev = "4a1e73e6a0d04b7dcd43e53b7e4a4a3f4ebd88da"
+rev = "dc8313491957774aaefe0eaffe40fcbd1d7b514a"
 
 [[require]]
 name = "rustic_audio_lean"

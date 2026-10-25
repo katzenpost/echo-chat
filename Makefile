@@ -9,7 +9,7 @@ export RUSTUP_TOOLCHAIN := 1.99.0
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
-.PHONY: build release test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci
+.PHONY: build release test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci apk
 
 build:
 	lake exe cache get && lake build frank_chat
@@ -50,3 +50,12 @@ test-integration:
 	lake build frank_chat && DAEMON=127.0.0.1:33399 N=3 MINUTES=30 sh tests/e2e/mixnet.sh
 
 ci: test e2e
+
+# frank_chat for Android, in .lake/android, built by Paw's Android build; see Paw's README for what
+# it needs. ANDROID_ABI is arm64-v8a, for phones, or x86_64, for the emulator.
+ANDROID_ABI ?= arm64-v8a
+
+apk:
+	lake exe cache get
+	APP=$(CURDIR) EXE=frank_chat ROOT=FrankChat.Main NAME=org.katzenpost.frank_chat LABEL=frank_chat \
+	  ANDROID_ABI=$(ANDROID_ABI) sh .lake/packages/paw/android/build.sh

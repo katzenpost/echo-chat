@@ -26,19 +26,32 @@ def taken (s : State) (name : String) : Bool := s.chats.any (·.name == name)
 
 def clean (name : String) : String := name.trimAscii.toString
 
-def newGroup (s : State) (name : String) : Asked :=
-  let name := clean name
-  if name.isEmpty then { note := "a new group needs a name" }
-  else if taken s name then { want := some name, note := s!"you already have a group called {name}" }
-  else { msg := some (.create name), want := some name }
+/-- The longest name we go by in a group, as katzenqt allows. -/
+def maxOwnName : Nat := 30
 
-def joinGroup (s : State) (name : String) : Asked :=
+/-- What is wrong with the name we would go by in a group, if anything. -/
+def ownNameTrouble (me : String) : Option String :=
+  if me.isEmpty then some "say what the other members will call you"
+  else if me.length > maxOwnName then some s!"the name they will call you is at most {maxOwnName} characters"
+  else none
+
+def newGroup (s : State) (name me : String) : Asked :=
   let name := clean name
+  let me := clean me
+  if name.isEmpty then { note := "a new group needs a name" }
+  else if let some why := ownNameTrouble me then { note := why }
+  else if taken s name then { want := some name, note := s!"you already have a group called {name}" }
+  else { msg := some (.create name (some me)), want := some name }
+
+def joinGroup (s : State) (name me : String) : Asked :=
+  let name := clean name
+  let me := clean me
   if name.isEmpty then { note := "give the group a name to know it by here" }
+  else if let some why := ownNameTrouble me then { note := why }
   else if taken s name then
     { want := some name,
       note := s!"you already have a group called {name}: to join someone else's group, give it a name of its own" }
-  else { msg := some (.join name), want := some name,
+  else { msg := some (.join name (some me)), want := some name,
          note := "a voucher code will appear: give it to a member of the group, who adds you with Invite" }
 
 def invite (chat : Option String) (code : String) : Asked :=

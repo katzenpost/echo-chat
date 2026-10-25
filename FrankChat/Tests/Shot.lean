@@ -80,9 +80,9 @@ def conversation : IO (Option Chat) := do
     feed who (.send "friends" text)
     runUntil world fun n => [0, 1, 2].all (says n · "friends" text)
   let (ok, net) ← (do
-    feed 0 (.create "friends")
+    feed 0 (.create "friends" none)
     for who in [1, 2] do
-      feed who (.join "friends")
+      feed who (.join "friends" none)
       unless ← runUntil world fun n => (code? n who "friends").isSome do return false
       let some code := code? (← get) who "friends" | return false
       feed 0 (.induct "friends" code)

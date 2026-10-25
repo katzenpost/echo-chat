@@ -19,8 +19,9 @@ open GroupChatClient.GroupChatKatzenqt1.Persist
 open GroupChatClient GroupChatClient.GroupChatKatzenqt1
 
 structure Config where
-  /-- The daemon's socket: a path, `@name` for an abstract one, or `HOST:PORT` over TCP. -/
-  daemon : String := "@katzenpost"
+  /-- The daemon's socket: a path, `@name` for an abstract one, or `HOST:PORT` over TCP. On Android
+  the daemon is another app's, which apps reach over TCP on the device. -/
+  daemon : String := if Paw.Linux.onAndroid then "127.0.0.1:64331" else "@katzenpost"
   stateDir : Option System.FilePath := none
   logFile : Option System.FilePath := none
   name : Option String := none
@@ -29,6 +30,7 @@ structure Config where
 
 def usage : String :=
   "usage: frank_chat [--daemon @katzenpost | PATH | HOST:PORT] [--state DIR] [--name NAME] [--log FILE] [--offline]
+The daemon is @katzenpost by default, and on Android 127.0.0.1:64331.
 The state directory is $XDG_DATA_HOME/frank_chat/$FRANK_CHAT_STATE (default: default).
 The log level is FRANK_CHAT_LOG: critical, error, warning, notice, info (the default) or debug."
 
@@ -146,7 +148,7 @@ where
   let home := (← IO.getEnv "HOME").getD dir.toString
   let downloads := System.FilePath.mk home / "Downloads"
   let downloads := if ← downloads.isDir then downloads.toString else home
-  let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads }
+  let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads, phone := Paw.Linux.onAndroid }
   let audio ← Voice.Audio.open (dir / "audio" / "drafts")
   if let some why := audio.off then log.warning why
   if cfg.offline then
