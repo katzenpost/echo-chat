@@ -12,16 +12,19 @@ permissions:
 
 jobs:
   # The same tag built on two runner images, from nothing cached: the release is made only when
-  # both give the same bytes.
+  # both give the same bytes, for the Linux binary and for the phones' APK before it is signed.
   build:
     strategy:
       matrix:
         os: [ubuntu-24.04, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       ELAN_VERSION: 4.2.4
       ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
+      NDK_VERSION: 30.0.16248370
+      BUILD_TOOLS_VERSION: 36.0.0
+      ANDROID_PLATFORM: android-36
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,6 +39,22 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - run: rustup toolchain install 1.99.0 --profile minimal
       - run: sh scripts/release-build.sh dist
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: install the Android tools
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;$NDK_VERSION" "build-tools;$BUILD_TOOLS_VERSION" "platforms;$ANDROID_PLATFORM" >/dev/null
+          rustup target add aarch64-linux-android --toolchain 1.99.0
+          cargo +1.99.0 install --locked cargo-ndk@4.1.2
+      - name: build the APK
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          export BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
+          export ANDROID_JAR="$ANDROID_HOME/platforms/$ANDROID_PLATFORM/android.jar"
+          sh scripts/release-apk.sh dist
       - uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.os }}
@@ -52,9 +71,29 @@ jobs:
       - uses: actions/download-artifact@v8
       - name: compare the two builds
         run: |
-          cat dist-*/SHA256SUMS
+          cat dist-*/SHA256SUMS dist-*/UNSIGNED-SHA256SUMS
           cmp dist-ubuntu-24.04/SHA256SUMS dist-ubuntu-22.04/SHA256SUMS
-          cd dist-ubuntu-24.04 && sha256sum -c SHA256SUMS
+          cmp dist-ubuntu-24.04/UNSIGNED-SHA256SUMS dist-ubuntu-22.04/UNSIGNED-SHA256SUMS
+          cd dist-ubuntu-24.04 && sha256sum -c SHA256SUMS UNSIGNED-SHA256SUMS
+      # Every release is signed with the same key, so that each installs over the last.
+      - name: sign the APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "build-tools;36.0.0" >/dev/null
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          cd dist-ubuntu-24.04
+          for f in frank_chat-*-unsigned.apk; do
+            "$apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:KEYSTORE_PASS \
+              --ks-key-alias frank_chat --v4-signing-enabled false --out "${f%-unsigned.apk}.apk" "$f"
+            "$apksigner" verify --print-certs "${f%-unsigned.apk}.apk"
+            rm "$f"
+          done
+          rm -f "$RUNNER_TEMP/release.jks"
+          sha256sum frank_chat-* > SHA256SUMS
+          cat SHA256SUMS
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist-ubuntu-24.04/frank_chat-*

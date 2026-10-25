@@ -9,7 +9,7 @@ export RUSTUP_TOOLCHAIN := 1.99.0
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
-.PHONY: build release test run shots screenshot android-screenshot e2e e2e-offline e2e-wayland test-integration ci apk
+.PHONY: build release release-apk test run shots screenshot android-screenshot e2e e2e-offline e2e-wayland test-integration ci apk
 
 build:
 	lake exe cache get && lake build frank_chat
@@ -17,6 +17,9 @@ build:
 # The binary and its SHA256SUMS in dist/, the same bytes on every machine.
 release:
 	sh scripts/release-build.sh dist
+
+release-apk:
+	sh scripts/release-apk.sh dist
 
 # In one process, with no daemon or window.
 test:
