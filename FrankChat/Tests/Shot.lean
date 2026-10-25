@@ -100,8 +100,8 @@ def conversation : IO (Option Chat) := do
   if !ok then return none
   return chatOf net 0 "friends"
 
-/-- The picture in the README: Alice's window, in the dark theme, with three groups, one of them a conversation. -/
-def readme (path : System.FilePath) : IO Unit := do
+/-- The README's groups, as Alice keeps them: the conversation, and two groups just started. -/
+def readmeState : IO State := do
   let some friends ← conversation | throw (IO.userError "the conversation did not finish")
   let friends := { friends with log := friends.log.filter fun l =>
     !(l.text.startsWith "a new group" || l.text.startsWith "reading the voucher") }
@@ -113,11 +113,20 @@ def readme (path : System.FilePath) : IO Unit := do
     AppTests.line 1 "added ~dana: they now read everything said in this group",
     AppTests.line 2 "added ~eli: they now read everything said in this group"]
   let book : Chat := { name := "book club", joining := some (.awaiting "" .empty .empty .empty) }
+  return { me := "alice", chats := [friends, work, book] }
+
+/-- Alice's saved state of the README's groups, for a picture of frank_chat on a phone. -/
+def readmeStateFile (dir : System.FilePath) : IO Unit := do
+  IO.FS.createDirAll dir
+  IO.FS.writeBinFile (dir / "state.cbor") (GroupChatClient.GroupChatKatzenqt1.Persist.save (← readmeState))
+
+/-- The picture in the README: Alice's window, in the dark theme, with three groups, one of them a conversation. -/
+def readme (path : System.FilePath) : IO Unit := do
   let app := App.app (fun _ => pure ()) AppTests.fakeAudio { state := { me := "alice" }, network := "daemon @katzenpost" }
   let rt := (Paw.Runtime.start app (Rect.ofXYWH 0 0 (px 1000) (px 640)) 0 Linux.measure (motion := false) (theme := Theme.dark)).1
   let logs := #["18:20:29.973 NOTI frank_chat: started as alice", "18:21:02.114 INFO frank_chat/net: friends: read box 41: 212 bytes",
     "18:21:15.611 INFO frank_chat/driver: replica epoch 488", "18:21:40.020 INFO frank_chat/net: friends: wrote job 7 at box 12"]
-  let (rt, _) := rt.results [App.Msg.state { me := "alice", chats := [friends, work, book] }, .logs logs] 100
+  let (rt, _) := rt.results [App.Msg.state (← readmeState), .logs logs] 100
   let scene := match rt.present with | .request (.present s) => s | _ => Scene.empty
   IO.FS.writeBinFile path (Linux.renderPng scene 2000 1280 2000)
 

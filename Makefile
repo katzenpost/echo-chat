@@ -9,7 +9,7 @@ export RUSTUP_TOOLCHAIN := 1.99.0
 katzenpost_ref?=2405aa1119404b1e27cce0566729141102d769f0
 katzenpost_dir?=.katzenpost
 
-.PHONY: build release test run shots screenshot e2e e2e-offline e2e-wayland test-integration ci apk
+.PHONY: build release test run shots screenshot android-screenshot e2e e2e-offline e2e-wayland test-integration ci apk
 
 build:
 	lake exe cache get && lake build frank_chat
@@ -32,6 +32,10 @@ shots:
 # The README's picture: Alice's window after a conversation over the simulated Pigeonhole.
 screenshot:
 	lake build frank_chat_test && lake exe frank_chat_test --readme docs/screenshot.png
+
+# The README's picture of frank_chat on a phone, taken on an Android emulator.
+android-screenshot:
+	lake build frank_chat_test && sh scripts/android-screenshot.sh
 
 e2e: e2e-offline e2e-wayland
 

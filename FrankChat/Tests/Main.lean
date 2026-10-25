@@ -24,6 +24,9 @@ def main (args : List String) : IO UInt32 := do
   if let ["--readme", path] := args then
     Shot.readme path
     return 0
+  if let ["--readme-state", dir] := args then
+    Shot.readmeStateFile dir
+    return 0
   if let ["--fixture", dir] := args then
     Shot.fixture dir
     return 0
