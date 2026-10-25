@@ -13,7 +13,7 @@ that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a f
   adapter does and does the IO.
 - Boxes are read and written through the client daemon, `kpclientd`, with the Lean
   [thin client](https://github.com/katzenpost/thin_client).
-- The window is drawn with [Paw](https://github.com/katzenpost/paw), on X11 or Wayland, and frank_chat
+- The window is drawn with [Paw](https://github.com/katzenpost/paw), on X11, Wayland or Android, and frank_chat
   logs with [Logger](https://github.com/katzenpost/Logger).
 
 ![frank_chat: groups on the left, a conversation with delivery marks in the middle, members with the start of their keys on the right](docs/screenshot.png)
@@ -62,6 +62,8 @@ Mathlib's downloaded files. Either way, `gh attestation verify frank_chat-v0.2.0
 katzenpost/frank_chat` checks that a downloaded binary was built by this repository's release workflow.
 
 ### Android
+
+<img src="docs/android.png" width="320" alt="frank_chat on an Android phone: a conversation in a group of three, with the message box and the Send button below it">
 
 `make apk` builds frank_chat for Android phones as `.lake/android/frank_chat-arm64-v8a.apk`, and
 `make apk ANDROID_ABI=x86_64` for the emulator, with
@@ -228,6 +230,7 @@ everything another member sends is untrusted.
     make e2e           # a saved state in a real window on Xvfb, driven with xdotool
     make shots         # pictures of the window, drawn offscreen, in shots/
     make screenshot    # docs/screenshot.png, from a conversation over the simulated Pigeonhole
+    make android-screenshot   # docs/android.png, the same conversation on an Android emulator
     N=5 DAEMON=@katzenpost sh tests/e2e/mixnet.sh   # N windows (2 to 8) in one group, against a running kpclientd
     ./test-integration.sh                       # the same over the docker mixnet
 
