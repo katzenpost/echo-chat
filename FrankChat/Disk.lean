@@ -8,11 +8,11 @@ import GroupChatClient.GroupChatKatzenqt1.Files
 
 /-! # Files on this machine
 
-What glint reads and writes besides its state, each on a task the user's click starts: a folder
+What frank_chat reads and writes besides its state, each on a task the user's click starts: a folder
 listed to choose a file, a file read to send, a file received copied out, and a picture decoded to
 show. -/
 
-namespace Glint.Disk
+namespace FrankChat.Disk
 
 open GroupChatClient.GroupChatKatzenqt1
 
@@ -89,4 +89,4 @@ def fit (w h maxW maxH : Nat) : Nat × Nat :=
   else if w * maxH ≤ h * maxW then (max 1 (w * maxH / h), maxH)
   else (maxW, max 1 (h * maxW / w))
 
-end Glint.Disk
+end FrankChat.Disk

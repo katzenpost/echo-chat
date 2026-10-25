@@ -3,18 +3,18 @@ SPDX-FileCopyrightText: Copyright (C) 2026 David Stainton
 SPDX-License-Identifier: AGPL-3.0-only
 -/
 
-import Glint.Tests.Display
-import Glint.Tests.Command
-import Glint.Tests.State
-import Glint.Tests.App
-import Glint.Tests.Shot
-import Glint.Tests.Members
-import Glint.Tests.Files
-import Glint.Tests.Voice
+import FrankChat.Tests.Display
+import FrankChat.Tests.Command
+import FrankChat.Tests.State
+import FrankChat.Tests.App
+import FrankChat.Tests.Shot
+import FrankChat.Tests.Members
+import FrankChat.Tests.Files
+import FrankChat.Tests.Voice
 
-/-! # glint's tests, in one process, with no daemon or window -/
+/-! # frank_chat's tests, in one process, with no daemon or window -/
 
-open Glint.Tests
+open FrankChat.Tests
 
 def main (args : List String) : IO UInt32 := do
   if let ["--shot", dir] := args then
