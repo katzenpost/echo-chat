@@ -61,6 +61,18 @@ takes a few hours. Without it, `make release` is quicker and trusts
 Mathlib's downloaded files. Either way, `gh attestation verify frank_chat-v0.2.0-x86_64-linux --repo
 katzenpost/frank_chat` checks that a downloaded binary was built by this repository's release workflow.
 
+### Android
+
+`make apk` builds frank_chat for Android phones as `.lake/android/frank_chat-arm64-v8a.apk`, and
+`make apk ANDROID_ABI=x86_64` for the emulator, with
+[Paw's Android build](https://github.com/katzenpost/paw#android), which lists what it needs. The
+APK is large, about 200 MB, as it holds Lean's runtime and the Lean and Mathlib code frank_chat
+uses.
+
+frank_chat connects to the client daemon when it starts, and nothing runs one on a phone yet, so on
+Android it can for now only show a saved state offline, started from a computer with
+`adb shell setprop debug.paw.args --offline`.
+
 ## Running
 
 frank_chat does not reach the mixnet itself. It talks to the Katzenpost client daemon, `kpclientd`,
