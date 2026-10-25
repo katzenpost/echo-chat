@@ -41,8 +41,11 @@ def Audio.silent (why : String) : Audio where
   error := pure none
   off := some why
 
-def Audio.engine (e : RusticAudio.Engine) : Audio where
-  start := discard <| e.startCapture (some "voice-note")
+/-- The sound system of an engine, recording only once `mic` says the microphone may be used. -/
+def Audio.engine (e : RusticAudio.Engine) (mic : IO Bool := pure true) : Audio where
+  start := do
+    unless ← mic do throw (IO.userError "allow frank_chat the microphone, then hold to talk again")
+    discard <| e.startCapture (some "voice-note")
   stop := e.stopCapture
   cancel := discard e.cancelCapture
   play := e.play
@@ -50,14 +53,15 @@ def Audio.engine (e : RusticAudio.Engine) : Audio where
   playing := e.isPlaying
   error := e.takePlaybackError
 
-/-- The sound system, with drafts kept in `dir`; or none, and why. -/
-def Audio.open (dir : System.FilePath) : IO Audio := do
+/-- The sound system, with drafts kept in `dir`, and `mic` saying whether the microphone may be
+used; or none, and why. -/
+def Audio.open (dir : System.FilePath) (mic : IO Bool := pure true) : IO Audio := do
   if !RusticAudio.abiMatches then return .silent "the sound library does not match frank_chat"
   try
     -- A draft not sent before frank_chat stopped is not kept.
     if ← dir.pathExists then IO.FS.removeDirAll dir
     IO.FS.createDirAll dir
-    return .engine (← RusticAudio.Engine.new dir.toString)
+    return .engine (← RusticAudio.Engine.new dir.toString) mic
   catch e => return .silent s!"no sound: {e}"
 
 /-- A recording shorter than this is taken for a slip, and thrown away. -/
