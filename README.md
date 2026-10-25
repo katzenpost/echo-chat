@@ -53,7 +53,7 @@ yourself, with what Building lists and Rust 1.99.0 (`rustup toolchain install 1.
     cd frank_chat
     git checkout v0.2.0
     FROM_SOURCE=1 make release
-    curl -fsSL https://github.com/katzenpost/frank_chat/releases/download/v0.2.0/SHA256SUMS | diff - dist/SHA256SUMS
+    curl -fsSL https://github.com/katzenpost/frank_chat/releases/download/v0.2.0/SHA256SUMS | grep linux | diff - dist/SHA256SUMS
 
 No output from `diff` means your build and the release match. `FROM_SOURCE=1` skips
 `lake exe cache get` and builds Mathlib too, so nothing you run was compiled by someone else; it
@@ -61,7 +61,20 @@ takes a few hours. Without it, `make release` is quicker and trusts
 Mathlib's downloaded files. Either way, `gh attestation verify frank_chat-v0.2.0-x86_64-linux --repo
 katzenpost/frank_chat` checks that a downloaded binary was built by this repository's release workflow.
 
+The APK is reproducible before it is signed: `make release-apk`, with what [Android](#android)
+needs and the NDK, build-tools and `android.jar` the release workflow pins, builds it unsigned, and
+its hash is the one in the release's `UNSIGNED-SHA256SUMS`. The release workflow signs it with
+frank_chat's key, whose certificate has the SHA-256 fingerprint
+
+    06a3810adabecdaa8eafb6d965b9a8ba41df3c9cded125d9ca9c49e7d647e1f8
+
+as the "certificate SHA-256 digest" `apksigner verify --print-certs` shows for a downloaded APK.
+
 ### Android
+
+Each release has an APK for phones, `frank_chat-<version>-arm64.apk`, which `adb install -r`
+installs, or the phone itself once it is downloaded there. Every release is signed with the same
+key, so one installs over the last and keeps your groups.
 
 `make apk` builds frank_chat for Android phones as `.lake/android/frank_chat-arm64-v8a.apk`, and
 `make apk ANDROID_ABI=x86_64` for the emulator, with
