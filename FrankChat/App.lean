@@ -62,6 +62,8 @@ structure Dialog where
   /-- The group it is about. -/
   chat : Option String := none
   field : String := ""
+  /-- The name we will go by in a group founded or joined. -/
+  me : String := ""
   /-- The member chosen, by the hex of their key; or the entry of the folder shown. -/
   pick : Option String := none
   note : String := ""
@@ -113,6 +115,7 @@ inductive Msg
   | scan
   | ask (d : DialogKind)
   | field (s : String)
+  | ownName (s : String)
   | pick (key : String)
   | confirm
   | dismiss
@@ -215,6 +218,9 @@ namespace Model
 
 def current (m : Model) : Option Chat := m.selected.bind m.state.chat?
 
+/-- The name we last gave ourselves in a group, to offer for the next. -/
+def lastOwnName (m : Model) : String := (m.state.chats.reverse.findSome? (·.me)).getD ""
+
 /-- Count the selected conversation as read. -/
 def markSeen (m : Model) : Model :=
   match m.current with
@@ -266,8 +272,8 @@ def perform {o : Origin} (post : GroupChatKatzenqt1.Msg → IO Unit) (a : Comman
 /-- What the open dialog asks for, when confirmed. -/
 def confirmed (m : Model) (d : Dialog) : Command.Asked :=
   match d.kind with
-  | .newGroup => Command.newGroup m.state d.field
-  | .join => Command.joinGroup m.state d.field
+  | .newGroup => Command.newGroup m.state d.field d.me
+  | .join => Command.joinGroup m.state d.field d.me
   | .invite => Command.invite d.chat d.field
   | .leave => Command.leave d.chat d.field
   | .clear => Command.clear d.chat
@@ -372,7 +378,8 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
       return
     let dir := m.lastDir.getD m.home
     let field := if kind == .rename then m.selected.getD "" else ""
-    let dialog : Dialog := { kind, modal := Modal.open d, chat := m.selected, dir, field }
+    let me := if kind == .newGroup || kind == .join then m.lastOwnName else ""
+    let dialog : Dialog := { kind, modal := Modal.open d, chat := m.selected, dir, field, me }
     modify fun (m, cs) => ({ m with menu := false, dialog := some dialog }, cs)
     if kind == .attach then browse dir
   | .other, .ask _ => pure ()
@@ -427,6 +434,7 @@ def update (post : GroupChatKatzenqt1.Msg → IO Unit) (audio : Voice.Audio) :
       | .error (.refused why) => (file, .refused why) :: rest
     ({ m with pictures }, cs)
   | _, .field s => modify fun (m, cs) => ({ m with dialog := m.dialog.map ({ · with field := s }) }, cs)
+  | _, .ownName s => modify fun (m, cs) => ({ m with dialog := m.dialog.map ({ · with me := s }) }, cs)
   | _, .pick k => modify fun (m, cs) => ({ m with dialog := m.dialog.map ({ · with pick := some k }) }, cs)
   | _, .confirm => do
     let m := (← get).1
@@ -823,6 +831,8 @@ def dialogView (m : Model) (d : Dialog) : Node Msg :=
   let group := (Display.name (d.chat.getD "")).text
   let field (placeholder : String) :=
     Ui.textField d.field .field { placeholder := SafeText.trusted placeholder } "dialog-field"
+  let ownName := Ui.col [Ui.label "Your name in it, as the other members will see it" (tone := .muted),
+    Ui.textField d.me .ownName { placeholder := SafeText.trusted "your name" } "dialog-me"] (px 4)
   let buttons (caption : String) (kind : Widgets.ButtonKind) :=
     Ui.row [Ui.spacer, Ui.button "Cancel" .dismiss "cancel", accept caption kind] (px 6)
   let note := if d.note.isEmpty then [] else
@@ -833,10 +843,10 @@ def dialogView (m : Model) (d : Dialog) : Node Msg :=
         parts ++ note ++ [buttons caption kind]) (px 12))) .dismiss
   match d.kind with
   | .newGroup => body "New group"
-      [Ui.paragraph "A group of your own; you add members with Invite.", field "its name"] "Create" .main
+      [Ui.paragraph "A group of your own; you add members with Invite.", field "its name", ownName] "Create" .main
   | .join => body "Join a group"
       [Ui.paragraph ("Name it as you will know it here. A voucher code will appear: give it to a " ++
-        "member of the group, who adds you with Invite."), field "its name here"] "Join" .main
+        "member of the group, who adds you with Invite."), field "its name here", ownName] "Join" .main
   | .invite => body s!"Invite to {group}"
       [Ui.paragraph s!"Whoever holds this code will read everything said in {group} from now on.",
         field "voucher code"] "Invite" .main

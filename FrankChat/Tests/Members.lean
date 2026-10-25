@@ -144,12 +144,16 @@ def tests : TestM Unit := do
     alice.click "new-group"
     alice.click "dialog-field"
     alice.typeText "g"
+    alice.click "dialog-me"
+    alice.typeText "Ali"
     alice.click "accept"
     let founded : IO Bool := do return (← alice.model).current.any fun (c : Chat) => c.group.isSome
     unless ← wait "alice founds a group" founded do return
     bob.click "join-group"
     bob.click "dialog-field"
     bob.typeText "g"
+    bob.click "dialog-me"
+    bob.typeText "Bo"
     bob.click "accept"
     let shown : IO Bool := do return !(← bob.texts "voucher-code").isEmpty
     unless ← wait "bob's window shows a voucher code" shown do return
@@ -162,8 +166,10 @@ def tests : TestM Unit := do
     alice.click "accept"
     let joined : IO Bool := do
       return (← bob.model).current.any (fun (c : Chat) => c.group.isSome) &&
-        (← alice.texts "inner").any (· == "~bob")
-    unless ← wait "bob joins, and alice lists him" joined do return
+        (← alice.texts "inner").any (· == "~Bo")
+    unless ← wait "bob joins, and alice lists him by the name he gave" joined do return
+    let named : IO Bool := return (← bob.texts "inner").any (· == "~Ali")
+    discard <| wait "and bob lists alice by the name she gave" named
     bob.click "draft"
     bob.typeText "hello from bob"
     bob.click "send"

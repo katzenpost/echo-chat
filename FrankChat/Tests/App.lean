@@ -193,10 +193,19 @@ def selection : TestM Unit := do
   let r ← click r "dialog-field"
   let r ← typeText r "fresh"
   let r ← click r "accept"
-  check "which creates the group" ((← last sent) == some "fresh: create")
+  check "it asks what the others will call us" (r.rt.model.dialog.isSome && (← sent.get).isEmpty &&
+    r.rt.model.dialog.any (·.note == "say what the other members will call you"))
+  let r ← click r "dialog-me"
+  let r ← typeText r "Ali"
+  let r ← click r "accept"
+  check "which creates the group, with us named as given" ((← last sent) == some "fresh: create as Ali")
   check "and closes" r.rt.model.dialog.isNone
-  let r ← state r { s with chats := s.chats ++ [chatWith "fresh" []] }
+  let r ← state r { s with chats := s.chats ++ [{ chatWith "fresh" [] with me := some "Ali" }] }
   check "the new group is selected once it appears" (r.rt.model.selected == some "fresh")
+  let r ← click r "new-group"
+  check "the next new group offers the name we gave"
+    (r.rt.model.dialog.any (·.me == "Ali")) fun _ => toString (r.rt.model.dialog.map (·.me))
+  let r ← key r .escape
   let r ← key r .pageUp { ctrl := true }
   check "Ctrl+PageUp selects the group before" (r.rt.model.selected == some "h")
   let r ← key r (.f 10)

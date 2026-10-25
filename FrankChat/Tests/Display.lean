@@ -53,9 +53,9 @@ def threeMembers : IO (Option Chat) := do
   let world ← IO.mkRef ({} : Sim.World)
   let net : Net := { cores := #["alice", "bob", "carol"].map fun me => { present := presentation, state := { me } } }
   let (ok, net) ← (do
-    feed 0 (.create "g")
+    feed 0 (.create "g" none)
     for who in [1, 2] do
-      feed who (.join "g")
+      feed who (.join "g" none)
       unless ← runUntil world fun n => (code? n who "g").isSome do return false
       let some code := code? (← get) who "g" | return false
       feed 0 (.induct "g" code)

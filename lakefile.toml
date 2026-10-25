@@ -32,7 +32,7 @@ rev = "daf2480b1183b3007eaf9ecebb6de323d3785b75"
 [[require]]
 name = "group_chat_client"
 git = "https://github.com/katzenpost/group_chat_client.git"
-rev = "4a1e73e6a0d04b7dcd43e53b7e4a4a3f4ebd88da"
+rev = "dc8313491957774aaefe0eaffe40fcbd1d7b514a"
 
 [[require]]
 name = "rustic_audio_lean"

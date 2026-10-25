@@ -36,6 +36,10 @@ def panes : TestM Unit := do
   let r := begin sent true
   check "with no groups, the empty state explains what to do" ((textsOf r "empty") == ["No groups yet"])
   check "and its buttons are in reach" (inside r "empty-new" && inside r "empty-join") (where_ r "empty-join")
+  let r ← click r "empty-join"
+  for k in ["dialog-field", "dialog-me", "accept", "cancel"] do
+    check s!"Join's {k} is in reach" (inside r k) (where_ r k)
+  let r ← key r .escape
   let r ← state r { me := "alice", chats := [chatWith "g" [], chatWith "h" []] }
   check "with groups, they are shown, none selected" (has r "groups" && r.rt.model.selected.isNone)
   check "and no conversation beside them" (!has r "conversation" && !has r "draft")
