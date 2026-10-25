@@ -149,7 +149,7 @@ where
   let downloads := System.FilePath.mk home / "Downloads"
   let downloads := if ← downloads.isDir then downloads.toString else home
   let base : App.Model := { state, dark, zone, stateDir := dir, home, downloads, phone := Paw.Linux.onAndroid }
-  let audio ← Voice.Audio.open (dir / "audio" / "drafts")
+  let audio ← Voice.Audio.open (dir / "audio" / "drafts") (Paw.Linux.permission "android.permission.RECORD_AUDIO")
   if let some why := audio.off then log.warning why
   if cfg.offline then
     let init := App.Model.take { base with network := "offline" } state

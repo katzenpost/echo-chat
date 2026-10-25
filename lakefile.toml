@@ -12,7 +12,7 @@ relaxedAutoImplicit = false
 [[require]]
 name = "paw"
 git = "https://github.com/katzenpost/paw.git"
-rev = "3787eec62850d55d2eca2c41ff157576be850022"
+rev = "10f529ce193fcaa72abbf68c99db688c74c59163"
 
 [[require]]
 name = "Logger"

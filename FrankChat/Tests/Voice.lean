@@ -141,11 +141,23 @@ def received : TestM Unit := do
   let r ← other r (.playLine 5)
   check "Play of origin other plays nothing" (r.rt.model.playing.isNone)
 
+/-- Rustic Audio's engine, when the microphone may not be used, as before Android's permission. -/
+def noMic : TestM Unit := do
+  let asked ← IO.mkRef 0
+  let audio ← Voice.Audio.open (testDir / "drafts") (do asked.modify (· + 1); pure false)
+  if audio.off.isSome then return
+  let r ← (audio.start *> pure none : IO _).tryCatch fun e => pure (some e.toString)
+  check "without the microphone, recording asks for it and says so"
+    (r == some "allow frank_chat the microphone, then hold to talk again" && (← asked.get) == 1)
+  let stopped ← (audio.stop *> pure none : IO _).tryCatch fun e => pure (some e.toString)
+  check "and records nothing" (stopped == some "capture is not active")
+
 def tests : TestM Unit := do
   setup
   recording
   slips
   keys
   received
+  noMic
 
 end FrankChat.Tests.VoiceTests
