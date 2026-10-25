@@ -69,9 +69,9 @@ katzenpost/frank_chat` checks that a downloaded binary was built by this reposit
 APK is large, about 200 MB, as it holds Lean's runtime and the Lean and Mathlib code frank_chat
 uses.
 
-frank_chat connects to the client daemon when it starts, and nothing runs one on a phone yet, so on
-Android it can for now only show a saved state offline, started from a computer with
-`adb shell setprop debug.paw.args --offline`.
+On Android frank_chat connects to the client daemon at `127.0.0.1:64331`, where an app that runs
+`kpclientd` on the phone listens. With `adb shell setprop debug.paw.args --offline` from a computer,
+it shows a saved state without one.
 
 ## Running
 
