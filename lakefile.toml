@@ -1,5 +1,5 @@
 name = "frank_chat"
-version = "0.2.0"
+version = "0.4.0"
 description = "A desktop group chat over the Katzenpost mixnet, in Lean, on Paw and cryptlib"
 keywords = ["chat", "gui", "mixnet", "katzenpost", "privacy"]
 license = "AGPL-3.0-only"
@@ -12,38 +12,38 @@ relaxedAutoImplicit = false
 [[require]]
 name = "paw"
 git = "https://github.com/katzenpost/paw.git"
-rev = "10f529ce193fcaa72abbf68c99db688c74c59163"
+rev = "v0.3.0"
 
 [[require]]
 name = "Logger"
 git = "https://github.com/katzenpost/Logger.git"
-rev = "f278d2cf58d60b9732dd643807f38f3f635f4f57"
+rev = "51313822f6db9ff091f3b2a3e6298e1066ebea5d"
 
 [[require]]
 name = "thinclient"
 git = "https://github.com/katzenpost/thin_client.git"
-rev = "cbc2272c156bbe67cbc6b996677811baff3eb404"
+rev = "985dc6a9188efad36ccdb020547b73fb7d43b23f"
 
 [[require]]
 name = "lean_unix_socket"
 git = "https://github.com/katzenpost/lean_unix_socket.git"
-rev = "daf2480b1183b3007eaf9ecebb6de323d3785b75"
+rev = "v0.1.0"
 
 [[require]]
 name = "group_chat_client"
 git = "https://github.com/katzenpost/group_chat_client.git"
-rev = "d6c461f398b69a3cdebf6a6a32ec13db9243227a"
+rev = "v0.2.0"
 
 [[require]]
 name = "rustic_audio_lean"
 git = "https://github.com/katzenpost/rustic_audio_lean.git"
-rev = "63fced24fadc43b118c175f8892563a4f52c7cc0"
+rev = "v0.2.0"
 
 # Last, so that its pin wins over the older ones its dependents carry.
 [[require]]
 name = "cryptlib"
 git = "https://github.com/katzenpost/cryptlib.git"
-rev = "6f651738d26db5ac18dd5670bf501cfc63723175"
+rev = "v0.2.0"
 
 [[lean_lib]]
 name = "FrankChat"
