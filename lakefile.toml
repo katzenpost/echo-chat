@@ -32,7 +32,7 @@ rev = "v0.1.0"
 [[require]]
 name = "group_chat_client"
 git = "https://github.com/katzenpost/group_chat_client.git"
-rev = "2de30c999dc098d46d631085b7a0f33e212d7c6b"
+rev = "v0.2.0"
 
 [[require]]
 name = "rustic_audio_lean"
