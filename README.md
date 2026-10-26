@@ -21,8 +21,9 @@ that speaks [katzenqt](https://github.com/katzenpost/katzenqt)'s group chat: a f
 ## Building
 
 frank_chat is Lean, with small Rust libraries underneath it: Paw's, for the window, one for the
-daemon's unix socket, and [rustic_audio_lean](https://github.com/katzenpost/rustic_audio_lean),
-for voice notes. You need:
+daemon's unix socket, [lean_os](https://github.com/katzenpost/lean_os), for saving the state to
+the disk whole, and [rustic_audio_lean](https://github.com/katzenpost/rustic_audio_lean), for
+voice notes. You need:
 
 - **Lean**, through [elan](https://github.com/leanprover/elan), which installs the toolchain
   named in `lean-toolchain` by itself.

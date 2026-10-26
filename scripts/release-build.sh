@@ -8,7 +8,7 @@ set -eu
 out=${1:-dist}
 cd "$(dirname "$0")/.."
 
-# As the Makefile sets it: Paw's toolchain, for all three Rust libraries.
+# As the Makefile sets it: Paw's toolchain, for all four Rust libraries.
 export RUSTUP_TOOLCHAIN=1.99.0
 export PATH="$HOME/.cargo/bin:$HOME/.elan/bin:$PATH"
 
@@ -21,7 +21,7 @@ export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
 export LC_ALL=C TZ=UTC
 
 # A cargo build left from before carries the unmapped paths.
-for p in paw rustic_audio_lean lean_unix_socket; do
+for p in paw rustic_audio_lean lean_unix_socket lean_os; do
 	rm -rf ".lake/packages/$p/rust/target"
 done
 rm -f .lake/build/bin/frank_chat
