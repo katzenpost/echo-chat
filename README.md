@@ -88,8 +88,7 @@ uses.
 On Android frank_chat needs a `kpclientd` instance running on the phone, and connects to it at
 `127.0.0.1:64331`. frank_chat has been tested with
 [kpclientd-android](https://github.com/bfix/kpclientd-android), an app that runs `kpclientd` there
-and listens at that address. With `adb shell setprop debug.paw.args --offline` from a computer,
-it shows a saved state without one.
+and listens at that address.
 
 ## Running
 
