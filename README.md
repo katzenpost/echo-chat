@@ -85,8 +85,10 @@ key, so one installs over the last and keeps your groups.
 APK is large, about 200 MB, as it holds Lean's runtime and the Lean and Mathlib code frank_chat
 uses.
 
-On Android frank_chat connects to the client daemon at `127.0.0.1:64331`, where an app that runs
-`kpclientd` on the phone listens. With `adb shell setprop debug.paw.args --offline` from a computer,
+On Android frank_chat needs a `kpclientd` instance running on the phone, and connects to it at
+`127.0.0.1:64331`. frank_chat has been tested with
+[kpclientd-android](https://github.com/bfix/kpclientd-android), an app that runs `kpclientd` there
+and listens at that address. With `adb shell setprop debug.paw.args --offline` from a computer,
 it shows a saved state without one.
 
 ## Running
@@ -95,16 +97,20 @@ frank_chat does not reach the mixnet itself. It talks to the Katzenpost client d
 which does the networking and the cryptography, so start the daemon first, with a client
 configuration that says which mixnet to join.
 
+This repository carries the configuration of the namenlos mixnet, in `config/client.toml`. It is
+a configuration for `kpclientd`, not for frank_chat, which never reads it.
+
 Build `kpclientd` from [katzenpost](https://github.com/katzenpost/katzenpost) with Go, of at least
-the version its `go.mod` names:
+the version its `go.mod` names, using the top-level Makefile:
 
     git clone https://github.com/katzenpost/katzenpost
-    cd katzenpost/cmd/kpclientd && go build
+    cd katzenpost
+    make kpclientd
 
-This repository carries the configuration of the namenlos mixnet, in `config/client.toml`. Run the
-daemon with it and leave it running:
+This puts the daemon at `cmd/kpclientd/kpclientd`. Run it with the configuration and leave it
+running:
 
-    ./kpclientd -c /path/to/frank_chat/config/client.toml
+    cmd/kpclientd/kpclientd -c /path/to/frank_chat/config/client.toml
 
 It logs to the terminal. Once it has fetched the mixnet's PKI document from the voting authorities
 and connected to one of the gateways the file pins, frank_chat can use it. namenlos's gateways change
