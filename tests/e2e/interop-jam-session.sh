@@ -50,7 +50,7 @@ jam_shows() {
 
 sleep 3
 if [ "$ROLE" = host ]; then
-  click new-group; click dialog-field; type_in g; click accept
+  click new-group; click dialog-field; type_in g; click dialog-me; type_in frank_chat; click accept
   expect frank_chat 'chats=\[g\[joined=true' "frank_chat founds a group" 60 || stop_all
   jam_line "/join g"
   wait_for "$WORK/jam/voucher-g.txt" . "$SECONDS_NET" || { fail "jam mints a voucher"; stop_all; }
@@ -61,7 +61,7 @@ if [ "$ROLE" = host ]; then
 else
   jam_line "/new g"
   jam_shows "a new group" "jam founds a group" 60 || stop_all
-  click join-group; click dialog-field; type_in g; click accept
+  click join-group; click dialog-field; type_in g; click dialog-me; type_in frank_chat; click accept
   expect frank_chat 'code=[A-Za-z0-9+/=]\{8,\}' "frank_chat shows a voucher code" "$SECONDS_NET" || stop_all
   CODE=$(tail -n 1 "$WORK/frank_chat.log" | sed 's/.*code=\([^ ]*\) .*/\1/')
   jam_line "/invite $CODE"

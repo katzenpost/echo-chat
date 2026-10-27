@@ -53,6 +53,15 @@ type_in() {
   sleep 0.3
 }
 
+# Fills member $1's New group or Join dialog with the group $2 and the name $1 goes by in it.
+name_group() {
+  click "$1" dialog-field
+  type_in "$1" "$2"
+  click "$1" dialog-me
+  type_in "$1" "$1"
+  click "$1" accept
+}
+
 # Fills member $1's open dialog with $2 and accepts it.
 answer() {
   click "$1" dialog-field
@@ -65,14 +74,14 @@ others() { for o in $ALL; do [ "$o" != "$1" ] && printf '%s ' "$o"; done; }
 expect_idle alice "an idle frank_chat does not wake"
 
 click $FIRST new-group
-answer $FIRST g
+name_group $FIRST g
 expect $FIRST 'chats=\[g\[joined=true' "$FIRST founds a group" 60 || stop_all
 
 # Everyone else asks to join at once; minting a voucher takes a trip across the mixnet.
 WAITING=$(others $FIRST)
 for m in $WAITING; do
   click "$m" join-group
-  answer "$m" g
+  name_group "$m" g
 done
 for m in $WAITING; do
   expect "$m" 'code=[A-Za-z0-9+/=]\{8,\} ' "$m's window shows a voucher code" "$SECONDS_NET" || stop_all
@@ -90,6 +99,8 @@ while [ -n "$WAITING" ]; do
     WAITING="$*"
     code=$(tail -n 1 "$WORK/$joiner.log" | sed 's/.*code=\([^ ]*\) .*/\1/')
     if [ $copied = no ]; then
+      # Paw ignores a click on a widget that appeared less than half a second before.
+      sleep 1
       click "$joiner" copy-voucher
       if [ "$(xclip -o -selection clipboard 2>/dev/null)" = "$code" ]; then ok "Copy puts the code on the clipboard"
       else fail "Copy puts the code on the clipboard"; fi
