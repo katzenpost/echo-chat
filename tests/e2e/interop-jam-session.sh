@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # A frank_chat window and a jam terminal in one group, through one client daemon. As host, frank_chat founds
-# the group and invites jam; as guest, jam founds it and invites frank_chat. Then each reads the other,
-# and jam's next message acknowledges frank_chat's. Run by interop-jam.sh inside Xvfb, with jam in tmux.
+# the group and invites jam; as guest, jam founds it and invites frank_chat. Then they trade a few
+# messages, each acknowledging what it has read of the other's. Run by interop-jam.sh inside Xvfb, with jam in tmux.
 set -u
 cd "$(dirname "$0")/../.."
 . tests/e2e/lib.sh
@@ -50,7 +50,7 @@ jam_shows() {
 
 sleep 3
 if [ "$ROLE" = host ]; then
-  click new-group; click dialog-field; type_in g; click accept
+  click new-group; click dialog-field; type_in g; click dialog-me; type_in frank_chat; click accept
   expect frank_chat 'chats=\[g\[joined=true' "frank_chat founds a group" 60 || stop_all
   jam_line "/join g"
   wait_for "$WORK/jam/voucher-g.txt" . "$SECONDS_NET" || { fail "jam mints a voucher"; stop_all; }
@@ -61,7 +61,7 @@ if [ "$ROLE" = host ]; then
 else
   jam_line "/new g"
   jam_shows "a new group" "jam founds a group" 60 || stop_all
-  click join-group; click dialog-field; type_in g; click accept
+  click join-group; click dialog-field; type_in g; click dialog-me; type_in frank_chat; click accept
   expect frank_chat 'code=[A-Za-z0-9+/=]\{8,\}' "frank_chat shows a voucher code" "$SECONDS_NET" || stop_all
   CODE=$(tail -n 1 "$WORK/frank_chat.log" | sed 's/.*code=\([^ ]*\) .*/\1/')
   jam_line "/invite $CODE"
@@ -73,6 +73,15 @@ jam_line "hello from jam"
 click draft; type_in "hello from frank_chat"; click send
 expect frank_chat '~jam:hello from jam' "frank_chat reads jam's message" "$SECONDS_NET"
 jam_shows "~frank_chat +hello from frank_chat" "jam reads frank_chat's message" "$SECONDS_NET"
-jam_line "jam read you"
-expect frank_chat 'me✓✓:hello from frank_chat' "jam's next message acknowledges frank_chat's" "$SECONDS_NET"
+
+# Each reply acknowledges what its sender has read, so a few rounds each way give both sides
+# their second mark.
+for n in 1 2 3; do
+  jam_line "jam $n"
+  expect frank_chat "~jam:jam $n" "frank_chat reads jam $n" "$SECONDS_NET"
+  click draft; type_in "frank_chat $n"; click send
+  jam_shows "~frank_chat +frank_chat $n" "jam reads frank_chat $n" "$SECONDS_NET"
+done
+expect frank_chat 'me✓✓:hello from frank_chat' "jam acknowledges frank_chat's messages" "$SECONDS_NET"
+jam_shows "me +jam 2 √√" "frank_chat acknowledges jam's messages" "$SECONDS_NET"
 stop_all
